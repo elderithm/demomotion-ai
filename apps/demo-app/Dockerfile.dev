@@ -1,0 +1,9 @@
+FROM node:20-bookworm-slim
+WORKDIR /workspace
+ENV NEXT_TELEMETRY_DISABLED=1
+COPY package.json pnpm-workspace.yaml ./
+COPY apps/demo-app/package.json apps/demo-app/package.json
+RUN corepack enable && corepack prepare pnpm@9.12.3 --activate && pnpm install --filter @demomotion/demo-app --frozen-lockfile=false
+COPY apps/demo-app ./apps/demo-app
+EXPOSE 3001
+CMD ["pnpm", "--filter", "@demomotion/demo-app", "dev"]
