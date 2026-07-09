@@ -1,4 +1,27 @@
+<div align="center">
+
 # DemoMotion AI
+
+**Turn a web app URL and a demo goal into a narrated product demo video.**
+
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](./LICENSE)
+![Status](https://img.shields.io/badge/status-MVP-orange.svg)
+![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
+
+![Next.js 16](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-Python%203.12-009688?logo=fastapi&logoColor=white)
+![Playwright](https://img.shields.io/badge/Playwright-recording-2EAD33?logo=playwright&logoColor=white)
+![ffmpeg](https://img.shields.io/badge/ffmpeg-encoding-007808?logo=ffmpeg&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini-narration-8E75B2?logo=googlegemini&logoColor=white)
+![Google Cloud](https://img.shields.io/badge/Google%20Cloud-Run%20%7C%20Vertex%20AI-4285F4?logo=googlecloud&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+
+<br>
+
+![DemoMotion AI demo](demo.gif)
+
+</div>
 
 **DemoMotion AI** is a hackathon MVP that turns a web app URL and a demo goal into a narrated product demo video.
 
@@ -186,7 +209,6 @@ The hosted SaaS edition should be kept in a separate private repository such as 
 ### Docker image Python compatibility
 
 The API service uses `mcr.microsoft.com/playwright/python:v1.58.0-noble` and the API package declares `requires-python = ">=3.12,<3.15"`. This keeps the local Docker build on a modern Python line while avoiding accidental Python 3.10 installs.
-
 
 ## Docker Compose notes
 
