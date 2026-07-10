@@ -130,6 +130,13 @@ resource "google_cloud_run_v2_service" "api" {
         name  = "GCS_BUCKET"
         value = google_storage_bucket.outputs.name
       }
+      # Allow the browser dashboard's origin through CORS. Referencing the web
+      # service's URL here (and not referencing the api URL from the web service)
+      # keeps the dependency one-directional and avoids a cycle.
+      env {
+        name  = "CORS_ORIGINS"
+        value = google_cloud_run_v2_service.web.uri
+      }
     }
   }
 
@@ -160,10 +167,10 @@ resource "google_cloud_run_v2_service" "web" {
         limits   = { cpu = "1", memory = "512Mi" }
         cpu_idle = true
       }
-      env {
-        name  = "NEXT_PUBLIC_API_BASE_URL"
-        value = google_cloud_run_v2_service.api.uri
-      }
+      # NEXT_PUBLIC_API_BASE_URL is inlined into the web bundle at build time
+      # (passed as a Docker build arg), so no runtime env is needed here. Keeping
+      # this service free of any reference to the api URL also avoids a
+      # dependency cycle with the api service's CORS_ORIGINS.
     }
   }
 
