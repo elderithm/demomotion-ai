@@ -39,17 +39,31 @@ class BrowserRecorder:
                 viewport=viewport,
                 record_video_dir=str(video_dir),
                 record_video_size=viewport,
+                # A real UA + locale so sites don't serve a bot/blank variant.
+                user_agent=(
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                ),
+                locale="ja-JP",
             )
             page = await context.new_page()
             try:
-                # 'networkidle' never settles on sites with video embeds, polling,
-                # or analytics beacons, so wait for the DOM instead and don't fail
-                # the job if navigation is slow — record whatever has rendered.
-                await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+                # 'load' waits for the initial bundle without hanging like
+                # 'networkidle' does on sites with video/polling/analytics. Don't
+                # fail the job if navigation is slow.
+                await page.goto(url, wait_until="load", timeout=45000)
             except Exception:
                 pass
-            # Let above-the-fold content settle before interacting/recording.
-            await page.wait_for_timeout(3500)
+            # Client-rendered SPAs paint only after hydration; wait (bounded) for
+            # real text to appear before recording, otherwise the video is blank.
+            try:
+                await page.wait_for_function(
+                    "() => document.body && document.body.innerText.trim().length > 150",
+                    timeout=15000,
+                )
+            except Exception:
+                pass
+            await page.wait_for_timeout(2000)
             for selector_action in scenario.selectors:
                 action = selector_action.get("action")
                 selector = selector_action.get("selector")
