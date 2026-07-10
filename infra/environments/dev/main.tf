@@ -119,6 +119,14 @@ resource "google_cloud_run_v2_service" "api" {
         value = "vertex"
       }
       env {
+        name  = "TTS_PROVIDER"
+        value = "google"
+      }
+      env {
+        name  = "STORAGE_PROVIDER"
+        value = "gcs"
+      }
+      env {
         name  = "GCP_PROJECT_ID"
         value = var.project_id
       }
