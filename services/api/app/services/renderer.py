@@ -5,7 +5,7 @@ import subprocess
 class VideoRenderer:
     def render(self, raw_video: Path, audio: Path, subtitle_vtt: Path, output_path: Path) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        # Use a simple, robust ffmpeg pipeline for hackathon demo. Subtitles are
+        # Use a simple, robust ffmpeg pipeline. Subtitles are
         # kept as an external VTT in API response; the MP4 receives narration audio.
         cmd = [
             "ffmpeg", "-y",

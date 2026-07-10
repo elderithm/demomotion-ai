@@ -9,15 +9,12 @@ services:
       AI_PROVIDER: mock
       OUTPUT_DIR: /app/generated
       PUBLIC_BASE_URL: http://localhost:8080
-      CORS_ORIGINS: http://localhost:3000,http://localhost:3001
+      CORS_ORIGINS: http://localhost:3000
     volumes:
       - ./services/api:/app
       - api_generated:/app/generated
     ports:
       - "8080:8080"
-    depends_on:
-      demo-app:
-        condition: service_started
     command: uvicorn app.main:app --reload --host 0.0.0.0 --port 8080
 
   web:
@@ -27,7 +24,6 @@ services:
     container_name: demomotion-web
     environment:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
-      NEXT_PUBLIC_DEFAULT_DEMO_URL: http://demo-app:3001
       NEXT_TELEMETRY_DISABLED: "1"
       # Enable file watching over the mounted source on Docker Desktop (macOS/Windows).
       WATCHPACK_POLLING: "true"
@@ -42,24 +38,6 @@ services:
     depends_on:
       api:
         condition: service_started
-
-  demo-app:
-    build:
-      context: .
-      dockerfile: apps/demo-app/Dockerfile.dev
-    container_name: demomotion-demo-app
-    environment:
-      NEXT_TELEMETRY_DISABLED: "1"
-      # Enable file watching over the mounted source on Docker Desktop (macOS/Windows).
-      WATCHPACK_POLLING: "true"
-    volumes:
-      # Live-reload host edits into the container.
-      - ./apps/demo-app:/workspace/apps/demo-app
-      # Preserve the image's installed deps / build cache (don't let the mount shadow them).
-      - /workspace/apps/demo-app/node_modules
-      - /workspace/apps/demo-app/.next
-    ports:
-      - "3001:3001"
 
 volumes:
   api_generated:
