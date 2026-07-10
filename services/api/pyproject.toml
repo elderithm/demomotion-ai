@@ -17,7 +17,7 @@ dependencies = [
   "gTTS>=2.5.0",
   "google-cloud-storage>=2.18.2",
   "google-cloud-texttospeech>=2.17.2",
-  "google-cloud-aiplatform>=1.69.0",
+  "google-genai>=1.0.0",
   "moviepy>=1.0.3"
 ]
 

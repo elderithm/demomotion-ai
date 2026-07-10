@@ -36,6 +36,15 @@ class BrowserRecorder:
                     # site. Skip the step and keep recording rather than failing the
                     # whole job.
                     continue
+            # Scroll through the page so the recording is a walkthrough of the
+            # content rather than a single static frame.
+            for _ in range(6):
+                await page.mouse.wheel(0, 700)
+                await page.wait_for_timeout(1100)
+            try:
+                await page.evaluate("() => window.scrollTo({ top: 0, behavior: 'smooth' })")
+            except Exception:
+                pass
             await page.wait_for_timeout(1800)
             video = page.video
             await context.close()

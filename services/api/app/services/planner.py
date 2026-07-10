@@ -1,13 +1,53 @@
+import asyncio
+import re
+import urllib.request
+
 from app.core.config import get_settings
 from app.models.video_job import DemoScenario, VideoJobCreate
+
+
+def _fetch_page_text(url: str) -> str:
+    """Best-effort fetch of the page's visible text to ground the Gemini prompt.
+    Server-rendered/marketing pages yield useful text; JS-only SPAs may not, in
+    which case Gemini still has the URL and goal to work from."""
+    try:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "Mozilla/5.0 (compatible; DemoMotionBot/1.0)"}
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            html = resp.read(300_000).decode("utf-8", "ignore")
+    except Exception:
+        return ""
+    html = re.sub(r"(?is)<(script|style|noscript).*?>.*?</\1>", " ", html)
+    text = re.sub(r"(?s)<[^>]+>", " ", html)
+    return re.sub(r"\s+", " ", text).strip()
 
 
 class ScenarioPlanner:
     async def create_scenario(self, request: VideoJobCreate) -> DemoScenario:
         settings = get_settings()
         if settings.ai_provider == "vertex":
-            return await self._vertex_scenario(request)
+            try:
+                return await self._vertex_scenario(request)
+            except Exception:
+                # Never fail the whole job on planning: fall back to a
+                # deterministic scenario that still reflects the goal.
+                return self._mock_scenario(request)
         return self._mock_scenario(request)
+
+    async def _vertex_scenario(self, request: VideoJobCreate) -> DemoScenario:
+        from app.services.gemini import GeminiPlanner
+
+        page_text = await asyncio.to_thread(_fetch_page_text, str(request.url))
+        plan = await asyncio.to_thread(GeminiPlanner().generate, request, page_text)
+        # Selectors are intentionally empty: reliable browser actions need the live
+        # DOM, so the recorder scrolls through the page instead of guessing.
+        return DemoScenario(
+            title=plan["title"],
+            steps=plan["steps"],
+            selectors=[],
+            narration=plan["narration"],
+        )
 
     def _mock_scenario(self, request: VideoJobCreate) -> DemoScenario:
         return DemoScenario(
@@ -27,15 +67,13 @@ class ScenarioPlanner:
             ],
         )
 
-    async def _vertex_scenario(self, request: VideoJobCreate) -> DemoScenario:
-        # Deterministic placeholder. The commercial version can replace this with
-        # richer site-specific scenario generation. Keeping a deterministic fallback
-        # avoids breaking the flow if Vertex credentials are unavailable.
-        return self._mock_scenario(request)
-
 
 class NarrationWriter:
     async def create_script(self, scenario: DemoScenario, language: str) -> str:
+        # Prefer the narration generated with the scenario (Gemini). Fall back to
+        # a canned script only when it is absent (mock / offline path).
+        if scenario.narration:
+            return scenario.narration
         if language == "ja-JP":
             return (
                 "簡単なアイデアから、ローンチ計画を作成します。\n"

@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     gcp_project_id: str | None = None
     gcp_location: str = "asia-northeast1"
     gcs_bucket: str | None = None
+    gemini_model: str = "gemini-2.5-flash"
     output_dir: str = "./generated"
     public_base_url: str = "http://localhost:8080"
     cors_origins: str = "http://localhost:3000"
