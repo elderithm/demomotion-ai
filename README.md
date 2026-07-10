@@ -37,13 +37,27 @@ This repository is the open-source core, licensed under AGPL-3.0-or-later. A hos
 6. ffmpeg combines screen recording, narration, and subtitles into an MP4.
 7. The result is saved locally in dev or to Cloud Storage in GCP.
 
-The app also supports `AI_PROVIDER=mock`, which generates deterministic scenarios and narration without external API calls — useful for local development and CI without Google Cloud credentials.
+## Providers
+
+Each stage of the pipeline is a pluggable provider, selected by environment
+variable, so the engine runs **credential-free by default** and a hosted build
+can swap in cloud services:
+
+| Variable | Default (`demo`) | Cloud |
+| --- | --- | --- |
+| `AI_PROVIDER` | `demo` — deterministic scenario for the bundled demo-app | `vertex` — Gemini plans the scenario + narration |
+| `TTS_PROVIDER` | `demo` — free gTTS (falls back to a placeholder tone) | `google` — Google Cloud Text-to-Speech |
+| `STORAGE_PROVIDER` | `local` — served from the API `/download` endpoint | `gcs` — Cloud Storage with a signed URL |
+
+The default `demo` providers record the bundled demo-app and export an MP4 with
+no Google Cloud access — ideal for local development, CI, and trying the engine.
 
 ## Monorepo layout
 
 ```txt
 apps/
   web/       Next.js dashboard for creating video jobs and viewing results
+  demo-app/  Small demo SaaS used as a zero-setup recording target
 services/
   api/       FastAPI API + worker orchestration + Playwright/ffmpeg pipeline
 infra/       Terraform for Google Cloud Run, Storage, Artifact Registry, IAM
@@ -75,9 +89,10 @@ make compose-up
 Open:
 
 - Web dashboard: http://localhost:3000
+- Demo app: http://localhost:3001
 - API docs: http://localhost:8080/docs
 
-In the dashboard, enter the public URL of the web app you want to record and a demo goal, then generate the video.
+The dashboard is prefilled with the bundled demo app URL (`http://demo-app:3001`), so you can generate a video immediately. Replace it with any public URL to record your own app.
 
 ### Stop
 
@@ -94,11 +109,12 @@ docker compose down -v --remove-orphans
 ## Services in Docker Compose
 
 ```txt
-web  Next.js dashboard on port 3000
-api  FastAPI + Playwright + ffmpeg on port 8080
+web       Next.js dashboard on port 3000
+api       FastAPI + Playwright + ffmpeg on port 8080
+demo-app  Zero-setup demo SaaS recording target on port 3001
 ```
 
-The local Docker setup uses `AI_PROVIDER=mock`, so it does not require Gemini, Vertex AI, or Google Cloud credentials.
+The local Docker setup uses the `demo` providers, so it does not require Gemini, Vertex AI, or Google Cloud credentials.
 
 ## Non-Docker local setup
 
@@ -128,10 +144,16 @@ make dev-api
 Terminal 2:
 
 ```bash
+make dev-demo
+```
+
+Terminal 3:
+
+```bash
 make dev-web
 ```
 
-Then open http://localhost:3000 and enter the URL of the web app you want to record.
+Then open http://localhost:3000. It is prefilled with `http://localhost:3001` (the demo app); replace it with any public URL to record your own app.
 
 ## Environment variables
 
@@ -139,7 +161,9 @@ Then open http://localhost:3000 and enter the URL of the web app you want to rec
 
 ```env
 APP_ENV=local
-AI_PROVIDER=mock
+AI_PROVIDER=demo
+TTS_PROVIDER=demo
+STORAGE_PROVIDER=local
 GCP_PROJECT_ID=
 GCP_LOCATION=asia-northeast1
 GCS_BUCKET=
@@ -152,6 +176,8 @@ For Google Cloud / Gemini:
 
 ```env
 AI_PROVIDER=vertex
+TTS_PROVIDER=google
+STORAGE_PROVIDER=gcs
 GCP_PROJECT_ID=your-project-id
 GCP_LOCATION=asia-northeast1
 GCS_BUCKET=your-output-bucket
