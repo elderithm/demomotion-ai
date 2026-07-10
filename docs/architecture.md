@@ -1,6 +1,6 @@
 # Architecture
 
-DemoMotion AI is intentionally small for hackathon review, but the flow mirrors a production SaaS.
+DemoMotion AI is intentionally small, but the flow mirrors a production SaaS.
 
 ```txt
 Next.js dashboard
@@ -14,8 +14,8 @@ Next.js dashboard
 
 ## Why this is an AI agent
 
-The system does not just edit uploaded footage. It plans a product story, chooses browser actions, executes the demo flow, records the UI, writes narration, and renders an output asset. For the hackathon version, scenario generation defaults to deterministic mock mode for reliability. Setting `AI_PROVIDER=vertex` is the extension point for Gemini-powered scenario planning and narration.
+The system does not just edit uploaded footage. It plans a product story, chooses browser actions, executes the demo flow, records the UI, writes narration, and renders an output asset. By default, scenario generation runs in deterministic mock mode for reliable local development. Setting `AI_PROVIDER=vertex` is the extension point for Gemini-powered scenario planning and narration.
 
 ## Public repository boundary
 
-This public version includes the minimal working pipeline and a sample demo app. Commercial templates, success-rate tuning, user accounts, billing, and production prompt libraries are intentionally left out.
+This public version includes the minimal working pipeline. Commercial templates, success-rate tuning, user accounts, billing, and production prompt libraries are intentionally left out.

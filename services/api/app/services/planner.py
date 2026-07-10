@@ -28,9 +28,9 @@ class ScenarioPlanner:
         )
 
     async def _vertex_scenario(self, request: VideoJobCreate) -> DemoScenario:
-        # Hackathon-safe placeholder. The commercial version can replace this with
+        # Deterministic placeholder. The commercial version can replace this with
         # richer site-specific scenario generation. Keeping a deterministic fallback
-        # avoids breaking the demo if Vertex credentials are unavailable.
+        # avoids breaking the flow if Vertex credentials are unavailable.
         return self._mock_scenario(request)
 
 

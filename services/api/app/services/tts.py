@@ -14,7 +14,7 @@ class SpeechService:
             try:
                 return await self._google_tts(text, language, output_path)
             except Exception:
-                # Keep the hackathon demo resilient: if cloud TTS fails, fall back below.
+                # Keep narration resilient: if cloud TTS fails, fall back below.
                 pass
         else:
             # Local/mock: use free online gTTS so the narration is real speech

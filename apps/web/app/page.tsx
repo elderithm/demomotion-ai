@@ -15,7 +15,7 @@ type Job = {
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8080';
-const DEFAULT_DEMO_URL = process.env.NEXT_PUBLIC_DEFAULT_DEMO_URL || 'http://localhost:3001';
+const DEFAULT_DEMO_URL = process.env.NEXT_PUBLIC_DEFAULT_DEMO_URL || '';
 
 // Maps the site-wide UI locale to the narration language code.
 const localeToNarration = (locale: string): string => (locale === 'ja' ? 'ja-JP' : 'en-US');
