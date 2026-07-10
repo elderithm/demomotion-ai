@@ -21,15 +21,21 @@ class BrowserRecorder:
             for selector_action in scenario.selectors:
                 action = selector_action.get("action")
                 selector = selector_action.get("selector")
-                if action == "click" and selector:
-                    await page.locator(selector).first.click(timeout=10000)
-                    await page.wait_for_timeout(900)
-                elif action == "fill" and selector:
-                    await page.locator(selector).first.fill(selector_action.get("value", ""), timeout=10000)
-                    await page.wait_for_timeout(900)
-                elif action == "wait" and selector:
-                    await page.locator(selector).first.wait_for(timeout=10000)
-                    await page.wait_for_timeout(1500)
+                try:
+                    if action == "click" and selector:
+                        await page.locator(selector).first.click(timeout=4000)
+                        await page.wait_for_timeout(900)
+                    elif action == "fill" and selector:
+                        await page.locator(selector).first.fill(selector_action.get("value", ""), timeout=4000)
+                        await page.wait_for_timeout(900)
+                    elif action == "wait" and selector:
+                        await page.locator(selector).first.wait_for(timeout=4000)
+                        await page.wait_for_timeout(1500)
+                except Exception:
+                    # Best-effort: a planned selector may not exist on an arbitrary
+                    # site. Skip the step and keep recording rather than failing the
+                    # whole job.
+                    continue
             await page.wait_for_timeout(1800)
             video = page.video
             await context.close()
