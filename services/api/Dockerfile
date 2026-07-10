@@ -1,6 +1,7 @@
 FROM mcr.microsoft.com/playwright/python:v1.58.0-noble
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
+# ffmpeg burns in subtitles; fonts-noto-cjk gives libass Japanese glyphs.
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk && rm -rf /var/lib/apt/lists/*
 COPY services/api/pyproject.toml ./
 RUN pip install -U pip && pip install -e .
 COPY services/api/app ./app

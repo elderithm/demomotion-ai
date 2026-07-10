@@ -5,7 +5,7 @@ from app.core.config import get_settings
 from app.models.video_job import VideoJob, VideoJobStatus
 from app.services.planner import NarrationWriter, ScenarioPlanner
 from app.services.recorder import BrowserRecorder
-from app.services.renderer import VideoRenderer
+from app.services.renderer import VideoRenderer, _duration
 from app.services.storage import OutputStorage
 from app.services.store import store
 from app.services.subtitles import create_vtt
@@ -50,7 +50,8 @@ class VideoPipeline:
             job.add_event("Generating voice-over and subtitle file")
             store.save(job)
             audio = await self.speech.synthesize(script, job.input.language, base / "narration.wav")
-            subtitle_text = create_vtt(script, base / "subtitles.vtt")
+            # Spread the subtitles across the narration audio so they stay in sync.
+            subtitle_text = create_vtt(script, base / "subtitles.vtt", _duration(audio))
             job.subtitle_vtt = subtitle_text
 
             job.add_event("Compositing recording and narration into MP4")

@@ -24,6 +24,9 @@ class DemoScenario(BaseModel):
     title: str
     steps: list[str]
     selectors: list[dict] = Field(default_factory=list)
+    # Voice-over script generated together with the scenario (Gemini). Optional so
+    # the deterministic/mock path can leave it unset and fall back to canned text.
+    narration: str | None = None
 
 
 class JobEvent(BaseModel):

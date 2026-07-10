@@ -1,0 +1,27 @@
+# Generic image build for Cloud Build, driven by substitutions.
+# Build context is the repo root (the service Dockerfiles COPY from repo-root paths).
+#
+#   API: gcloud builds submit --config cloudbuild.yaml \
+#          --substitutions=_DOCKERFILE=services/api/Dockerfile,_IMAGE=<image>
+#   Web: gcloud builds submit --config cloudbuild.yaml \
+#          --substitutions=_DOCKERFILE=apps/web/Dockerfile,_IMAGE=<image>,_NEXT_PUBLIC_API_BASE_URL=<api-url>
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - ${_DOCKERFILE}
+      - -t
+      - ${_IMAGE}
+      - --build-arg
+      - NEXT_PUBLIC_API_BASE_URL=${_NEXT_PUBLIC_API_BASE_URL}
+      - .
+images:
+  - ${_IMAGE}
+substitutions:
+  _DOCKERFILE: services/api/Dockerfile
+  _IMAGE: image
+  _NEXT_PUBLIC_API_BASE_URL: http://localhost:8080
+options:
+  machineType: E2_HIGHCPU_8
+timeout: 1800s
