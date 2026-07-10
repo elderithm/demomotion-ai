@@ -41,8 +41,15 @@ class BrowserRecorder:
                 record_video_size=viewport,
             )
             page = await context.new_page()
-            await page.goto(url, wait_until="networkidle", timeout=45000)
-            await page.wait_for_timeout(1000)
+            try:
+                # 'networkidle' never settles on sites with video embeds, polling,
+                # or analytics beacons, so wait for the DOM instead and don't fail
+                # the job if navigation is slow — record whatever has rendered.
+                await page.goto(url, wait_until="domcontentloaded", timeout=45000)
+            except Exception:
+                pass
+            # Let above-the-fold content settle before interacting/recording.
+            await page.wait_for_timeout(3500)
             for selector_action in scenario.selectors:
                 action = selector_action.get("action")
                 selector = selector_action.get("selector")
