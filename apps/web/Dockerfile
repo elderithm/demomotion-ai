@@ -6,6 +6,10 @@ RUN corepack enable && pnpm install --filter @demomotion/web --frozen-lockfile=f
 
 FROM node:20-bookworm-slim AS builder
 WORKDIR /app
+# NEXT_PUBLIC_* is inlined at build time, so the API base URL must be provided
+# here (not just as a Cloud Run runtime env var).
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY . .
