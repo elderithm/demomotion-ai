@@ -171,6 +171,16 @@ resource "google_cloud_run_v2_service" "web" {
       # (passed as a Docker build arg), so no runtime env is needed here. Keeping
       # this service free of any reference to the api URL also avoids a
       # dependency cycle with the api service's CORS_ORIGINS.
+
+      # HTTP Basic auth gate, read by the Next.js middleware at runtime.
+      env {
+        name  = "BASIC_AUTH_USER"
+        value = var.basic_auth_user
+      }
+      env {
+        name  = "BASIC_AUTH_PASS"
+        value = var.basic_auth_pass
+      }
     }
   }
 
