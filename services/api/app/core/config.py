@@ -4,7 +4,14 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_env: str = "local"
-    ai_provider: str = "mock"
+    # Pluggable providers so the engine runs credential-free by default ("demo")
+    # and a hosted/commercial build can swap in cloud services:
+    #   ai_provider:      demo  | vertex   (scenario + narration planning)
+    #   tts_provider:     demo  | google   (voice-over synthesis)
+    #   storage_provider: local | gcs      (where the MP4 is stored/served)
+    ai_provider: str = "demo"
+    tts_provider: str = "demo"
+    storage_provider: str = "local"
     gcp_project_id: str | None = None
     gcp_location: str = "asia-northeast1"
     gcs_bucket: str | None = None

@@ -30,12 +30,12 @@ class ScenarioPlanner:
             try:
                 return await self._vertex_scenario(request)
             except Exception as exc:
-                # Never fail the whole job on planning: fall back to a
-                # deterministic scenario. Log the reason so the fallback is not
-                # silent (visible in Cloud Run logs).
-                print(f"[planner] Gemini planning failed, using fallback: {exc!r}", flush=True)
-                return self._mock_scenario(request)
-        return self._mock_scenario(request)
+                # Never fail the whole job on planning: fall back to the demo
+                # scenario. Log the reason so the fallback is not silent (visible
+                # in Cloud Run logs).
+                print(f"[planner] Gemini planning failed, using demo fallback: {exc!r}", flush=True)
+                return self._demo_scenario(request)
+        return self._demo_scenario(request)
 
     async def _vertex_scenario(self, request: VideoJobCreate) -> DemoScenario:
         from app.services.gemini import GeminiPlanner
@@ -54,7 +54,9 @@ class ScenarioPlanner:
             narration=plan["narration"],
         )
 
-    def _mock_scenario(self, request: VideoJobCreate) -> DemoScenario:
+    def _demo_scenario(self, request: VideoJobCreate) -> DemoScenario:
+        # Deterministic scenario whose selectors match the bundled demo-app, so
+        # the demo provider records a real click-through with no cloud calls.
         return DemoScenario(
             title="Founder launch plan in under a minute",
             steps=[

@@ -1,4 +1,4 @@
-.PHONY: install dev-api dev-web test build compose-up compose-down compose-logs compose-build compose-clean
+.PHONY: install dev-api dev-web dev-demo test build compose-up compose-down compose-logs compose-build compose-clean
 
 install:
 	pnpm install
@@ -10,6 +10,9 @@ dev-api:
 
 dev-web:
 	pnpm --filter @demomotion/web dev
+
+dev-demo:
+	pnpm --filter @demomotion/demo-app dev -- -p 3001
 
 compose-up:
 	docker compose up --build
@@ -31,4 +34,5 @@ test:
 
 build:
 	pnpm --filter @demomotion/web build
+	pnpm --filter @demomotion/demo-app build
 	cd services/api && . .venv/bin/activate && python -m compileall app

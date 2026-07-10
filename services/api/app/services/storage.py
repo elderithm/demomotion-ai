@@ -10,7 +10,7 @@ SIGNED_URL_TTL = timedelta(days=7)
 class OutputStorage:
     async def publish(self, job_id: str, file_path: Path) -> str:
         settings = get_settings()
-        if settings.gcs_bucket:
+        if settings.storage_provider == "gcs" and settings.gcs_bucket:
             try:
                 from google.cloud import storage
 

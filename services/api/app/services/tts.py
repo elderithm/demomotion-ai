@@ -10,14 +10,14 @@ class SpeechService:
     async def synthesize(self, text: str, language: str, output_path: Path) -> Path:
         settings = get_settings()
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        if settings.ai_provider == "vertex":
+        if settings.tts_provider == "google":
             try:
                 return await self._google_tts(text, language, output_path)
             except Exception:
                 # Keep narration resilient: if cloud TTS fails, fall back below.
                 pass
         else:
-            # Local/mock: use free online gTTS so the narration is real speech
+            # Demo provider: use free online gTTS so the narration is real speech
             # (no cloud credentials required). Falls back to a beep if it fails
             # (e.g. no internet access).
             try:
