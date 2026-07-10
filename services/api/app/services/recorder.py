@@ -37,10 +37,26 @@ class BrowserRecorder:
                     # whole job.
                     continue
             # Scroll through the page so the recording is a walkthrough of the
-            # content rather than a single static frame.
-            for _ in range(6):
-                await page.mouse.wheel(0, 700)
-                await page.wait_for_timeout(1100)
+            # content rather than a single static frame. Use JS scrolling (rather
+            # than mouse.wheel, which is unreliable in headless Chromium) so the
+            # viewport is guaranteed to move.
+            try:
+                total = await page.evaluate(
+                    "() => Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)"
+                )
+            except Exception:
+                total = 0
+            view_h = viewport["height"]
+            steps = max(4, min(10, int(total / view_h) + 1)) if total else 5
+            for i in range(steps):
+                target = int(total * (i + 1) / steps) if total else (i + 1) * view_h
+                try:
+                    await page.evaluate(
+                        "(y) => window.scrollTo({ top: y, behavior: 'smooth' })", target
+                    )
+                except Exception:
+                    pass
+                await page.wait_for_timeout(1300)
             try:
                 await page.evaluate("() => window.scrollTo({ top: 0, behavior: 'smooth' })")
             except Exception:

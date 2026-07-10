@@ -29,9 +29,11 @@ class ScenarioPlanner:
         if settings.ai_provider == "vertex":
             try:
                 return await self._vertex_scenario(request)
-            except Exception:
+            except Exception as exc:
                 # Never fail the whole job on planning: fall back to a
-                # deterministic scenario that still reflects the goal.
+                # deterministic scenario. Log the reason so the fallback is not
+                # silent (visible in Cloud Run logs).
+                print(f"[planner] Gemini planning failed, using fallback: {exc!r}", flush=True)
                 return self._mock_scenario(request)
         return self._mock_scenario(request)
 
