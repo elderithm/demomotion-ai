@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -29,7 +30,9 @@ class BrowserRecorder:
         # Linger so the click's result (navigation / panel) is visible on screen.
         await page.wait_for_timeout(2200)
 
-    async def record(self, url: str, scenario: DemoScenario, output_dir: Path, aspect_ratio: str) -> Path:
+    async def record(
+        self, url: str, scenario: DemoScenario, output_dir: Path, aspect_ratio: str
+    ) -> tuple[Path, float]:
         output_dir.mkdir(parents=True, exist_ok=True)
         viewport = {"width": 1280, "height": 720} if aspect_ratio == "16:9" else {"width": 720, "height": 1280}
         video_dir = output_dir / "raw"
@@ -47,6 +50,9 @@ class BrowserRecorder:
                 locale="ja-JP",
             )
             page = await context.new_page()
+            # Playwright records from page creation, so the load/hydration period
+            # before content paints is blank. Time it and trim it off later.
+            record_started = time.monotonic()
             try:
                 # 'load' waits for the initial bundle without hanging like
                 # 'networkidle' does on sites with video/polling/analytics. Don't
@@ -63,6 +69,7 @@ class BrowserRecorder:
                 )
             except Exception:
                 pass
+            lead_in = time.monotonic() - record_started
             await page.wait_for_timeout(2000)
             for selector_action in scenario.selectors:
                 action = selector_action.get("action")
@@ -115,4 +122,4 @@ class BrowserRecorder:
             await browser.close()
             if video is None:
                 raise RuntimeError("Playwright did not produce a video")
-            return Path(await video.path())
+            return Path(await video.path()), lead_in

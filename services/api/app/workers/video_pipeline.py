@@ -42,7 +42,7 @@ class VideoPipeline:
             job.status = VideoJobStatus.recording
             job.add_event("Opening Chromium and recording the product workflow")
             store.save(job)
-            raw_video = await self.recorder.record(str(job.input.url), scenario, base, job.input.aspect_ratio)
+            raw_video, lead_in = await self.recorder.record(str(job.input.url), scenario, base, job.input.aspect_ratio)
             job.add_event("Screen recording completed")
             store.save(job)
 
@@ -55,7 +55,7 @@ class VideoPipeline:
             job.subtitle_vtt = subtitle_text
 
             job.add_event("Compositing recording and narration into MP4")
-            output = self.renderer.render(raw_video, audio, base / "subtitles.vtt", base / "demo.mp4")
+            output = self.renderer.render(raw_video, audio, base / "subtitles.vtt", base / "demo.mp4", trim_start=lead_in)
             job.video_path = str(output)
             job.video_url = await self.storage.publish(job.id, output)
             job.status = VideoJobStatus.completed
