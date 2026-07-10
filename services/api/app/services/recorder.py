@@ -38,15 +38,19 @@ class BrowserRecorder:
         video_dir = output_dir / "raw"
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
+            # Derive the UA from the bundled Chromium and drop "Headless": a real,
+            # current version keeps bot filters happy and stops version-gated sites
+            # (e.g. Notion) from redirecting us to an "unsupported browser" page.
+            # A hardcoded UA goes stale and eventually gets rejected as too old.
+            probe = await browser.new_context()
+            default_ua = await (await probe.new_page()).evaluate("() => navigator.userAgent")
+            await probe.close()
+            user_agent = default_ua.replace("HeadlessChrome", "Chrome")
             context = await browser.new_context(
                 viewport=viewport,
                 record_video_dir=str(video_dir),
                 record_video_size=viewport,
-                # A real UA + locale so sites don't serve a bot/blank variant.
-                user_agent=(
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                ),
+                user_agent=user_agent,
                 locale="ja-JP",
             )
             page = await context.new_page()
