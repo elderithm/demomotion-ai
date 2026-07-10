@@ -22,6 +22,7 @@ locals {
     "texttospeech.googleapis.com",
     "cloudbuild.googleapis.com",
     "iam.googleapis.com",
+    "iamcredentials.googleapis.com",
     "logging.googleapis.com"
   ]
 }
@@ -66,16 +67,24 @@ resource "google_project_iam_member" "runtime_vertex" {
   member  = "serviceAccount:${google_service_account.runtime.email}"
 }
 
-resource "google_project_iam_member" "runtime_tts" {
-  project = var.project_id
-  role    = "roles/cloudtts.user"
-  member  = "serviceAccount:${google_service_account.runtime.email}"
-}
+# Cloud Text-to-Speech has no method-level IAM roles: any authenticated identity
+# in a project with the API enabled can call it. No dedicated binding is needed
+# for the runtime service account (add roles/serviceusage.serviceUsageConsumer
+# only if synthesis calls return 403).
 
 resource "google_storage_bucket_iam_member" "runtime_storage" {
   bucket = google_storage_bucket.outputs.name
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.runtime.email}"
+}
+
+# Let the runtime service account sign V4 URLs for private bucket objects via the
+# IAM signBlob API (self-impersonation), so the API can hand the browser a
+# time-limited playable URL without making the bucket public.
+resource "google_service_account_iam_member" "runtime_sign" {
+  service_account_id = google_service_account.runtime.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${google_service_account.runtime.email}"
 }
 
 resource "google_cloud_run_v2_service" "api" {
@@ -87,13 +96,19 @@ resource "google_cloud_run_v2_service" "api" {
     service_account = google_service_account.runtime.email
     scaling {
       min_instance_count = 0
-      max_instance_count = 2
+      # Jobs run as in-process FastAPI BackgroundTasks against an in-memory
+      # store, so all requests for a job (create + poll + download) must land on
+      # the same instance. Cap at 1 until the pipeline moves to a shared store
+      # and a real queue.
+      max_instance_count = 1
     }
     containers {
       image = "${var.region}-docker.pkg.dev/${var.project_id}/${var.name}/api:latest"
       resources {
-        limits   = { cpu = "2", memory = "2Gi" }
-        cpu_idle = true
+        limits = { cpu = "2", memory = "2Gi" }
+        # CPU must stay allocated after the HTTP response returns, otherwise the
+        # background video pipeline is starved of CPU.
+        cpu_idle = false
       }
       env {
         name  = "APP_ENV"
