@@ -1,9 +1,34 @@
 from pathlib import Path
+from urllib.parse import urlparse
+
 from playwright.async_api import async_playwright
+
 from app.models.video_job import DemoScenario
 
 
 class BrowserRecorder:
+    @staticmethod
+    async def _click_by_text(page, base_url: str, text: str) -> None:
+        """Click a button/link identified by its visible text, but only if it is
+        safe: skip elements that open a new tab or navigate off-site so the demo
+        stays on the target product."""
+        loc = page.get_by_role("link", name=text, exact=False).or_(
+            page.get_by_role("button", name=text, exact=False)
+        ).first
+        await loc.wait_for(state="visible", timeout=4000)
+        if await loc.get_attribute("target") == "_blank":
+            return
+        href = await loc.get_attribute("href")
+        if href and href.startswith(("http://", "https://")):
+            host = urlparse(href).netloc
+            if host and host != urlparse(base_url).netloc:
+                return
+        await loc.scroll_into_view_if_needed(timeout=3000)
+        await page.wait_for_timeout(700)
+        await loc.click(timeout=4000)
+        # Linger so the click's result (navigation / panel) is visible on screen.
+        await page.wait_for_timeout(2200)
+
     async def record(self, url: str, scenario: DemoScenario, output_dir: Path, aspect_ratio: str) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         viewport = {"width": 1280, "height": 720} if aspect_ratio == "16:9" else {"width": 720, "height": 1280}
@@ -22,7 +47,9 @@ class BrowserRecorder:
                 action = selector_action.get("action")
                 selector = selector_action.get("selector")
                 try:
-                    if action == "click" and selector:
+                    if action == "click_text" and selector_action.get("text"):
+                        await self._click_by_text(page, url, selector_action["text"])
+                    elif action == "click" and selector:
                         await page.locator(selector).first.click(timeout=4000)
                         await page.wait_for_timeout(900)
                     elif action == "fill" and selector:

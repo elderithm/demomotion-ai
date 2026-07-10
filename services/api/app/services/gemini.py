@@ -42,7 +42,12 @@ JSON object with these keys:
 - "narration": a natural-sounding voice-over script in {language_name}, 3 to 5
   sentences. It should introduce the product, follow the stated goal, and refer
   to what is actually on the page. Plain text only, no markdown, and do not
-  mention that it was AI-generated."""
+  mention that it was AI-generated.
+- "actions": an array of 0 to 3 strings, each the EXACT visible text of a button
+  or link on the page to click, in order, to demonstrate the goal. Use only real
+  labels you can see in the page text, prefer primary calls-to-action and
+  in-site navigation, and never include anything that logs out, deletes data,
+  submits a form, or leaves the site."""
 
         response = client.models.generate_content(
             model=settings.gemini_model,
@@ -73,4 +78,16 @@ JSON object with these keys:
         narration = str(data.get("narration") or "").strip()
         if not narration:
             raise ValueError("Gemini returned an empty narration")
-        return {"title": title, "steps": steps or [title], "narration": narration}
+        actions: list[str] = []
+        for action in data.get("actions", []):
+            if isinstance(action, dict):
+                action = action.get("label") or action.get("text") or ""
+            action = str(action).strip()
+            if action:
+                actions.append(action)
+        return {
+            "title": title,
+            "steps": steps or [title],
+            "narration": narration,
+            "actions": actions[:3],
+        }

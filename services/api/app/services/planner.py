@@ -42,12 +42,15 @@ class ScenarioPlanner:
 
         page_text = await asyncio.to_thread(_fetch_page_text, str(request.url))
         plan = await asyncio.to_thread(GeminiPlanner().generate, request, page_text)
-        # Selectors are intentionally empty: reliable browser actions need the live
-        # DOM, so the recorder scrolls through the page instead of guessing.
+        # Gemini suggests which buttons/links to click by their visible text; the
+        # recorder resolves them against the live DOM and clicks safely.
+        selectors = [
+            {"action": "click_text", "text": label} for label in plan.get("actions", [])
+        ]
         return DemoScenario(
             title=plan["title"],
             steps=plan["steps"],
-            selectors=[],
+            selectors=selectors,
             narration=plan["narration"],
         )
 
