@@ -1,0 +1,53 @@
+# Dogfood / verify the keyless (Workload Identity Federation) path end-to-end:
+# authenticate to Google Cloud with NO stored key, then generate a Gemini-narrated
+# video via the local action. The provider + service account below are outputs of
+# infra/environments/dev (`terraform output wif_provider ci_service_account`) and
+# are not secrets. Trigger from the Actions tab.
+name: Verify (keyless vertex)
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: URL to record
+        default: https://conference.findy-code.io/
+      goal:
+        description: What the demo should show
+        default: Explain this site for a first-time visitor, focusing on the 3 or 4 most important points.
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the API image
+        run: docker build -f services/api/Dockerfile -t demomotion-api:ci .
+
+      - name: Authenticate to Google Cloud (keyless)
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: demomotion-ai-dev
+          workload_identity_provider: projects/349855387137/locations/global/workloadIdentityPools/github/providers/github
+          service_account: demomotion-ai-runtime@demomotion-ai-dev.iam.gserviceaccount.com
+
+      - name: Generate a Gemini-narrated demo (no key)
+        uses: ./
+        with:
+          image: demomotion-api:ci
+          url: ${{ inputs.url }}
+          goal: ${{ inputs.goal }}
+          language: ja-JP
+          ai_provider: vertex
+          tts_provider: google
+          storage_provider: local
+          gcp_project_id: demomotion-ai-dev
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-video
+          path: demo.mp4

@@ -23,6 +23,7 @@ locals {
     "cloudbuild.googleapis.com",
     "iam.googleapis.com",
     "iamcredentials.googleapis.com",
+    "sts.googleapis.com",
     "logging.googleapis.com"
   ]
 }
@@ -86,6 +87,40 @@ resource "google_service_account_iam_member" "runtime_sign" {
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "serviceAccount:${google_service_account.runtime.email}"
 }
+
+# --- Keyless CI: Workload Identity Federation for GitHub Actions ---------------
+# Lets this repo's GitHub Actions impersonate the runtime service account using a
+# short-lived OIDC token, so CI can run vertex/TTS with no long-lived key. This
+# only trusts var.github_repository; OSS consumers set up their own WIF.
+
+resource "google_iam_workload_identity_pool" "github" {
+  workload_identity_pool_id = "github"
+  display_name              = "GitHub Actions"
+  description               = "OIDC federation for GitHub Actions CI"
+  depends_on                = [google_project_service.apis]
+}
+
+resource "google_iam_workload_identity_pool_provider" "github" {
+  workload_identity_pool_id          = google_iam_workload_identity_pool.github.workload_identity_pool_id
+  workload_identity_pool_provider_id = "github"
+  display_name                       = "GitHub"
+  attribute_mapping = {
+    "google.subject"       = "assertion.sub"
+    "attribute.repository" = "assertion.repository"
+  }
+  # Only accept tokens minted for our repository.
+  attribute_condition = "assertion.repository == \"${var.github_repository}\""
+  oidc {
+    issuer_uri = "https://token.actions.githubusercontent.com"
+  }
+}
+
+resource "google_service_account_iam_member" "github_ci_impersonation" {
+  service_account_id = google_service_account.runtime.name
+  role               = "roles/iam.workloadIdentityUser"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repository}"
+}
+# ------------------------------------------------------------------------------
 
 resource "google_cloud_run_v2_service" "api" {
   name     = "${var.name}-api"
@@ -212,4 +247,15 @@ output "web_url" {
 
 output "bucket" {
   value = google_storage_bucket.outputs.name
+}
+
+# Feed these to google-github-actions/auth in this repo's CI (not secrets).
+output "wif_provider" {
+  description = "workload_identity_provider for google-github-actions/auth"
+  value       = google_iam_workload_identity_pool_provider.github.name
+}
+
+output "ci_service_account" {
+  description = "service_account to impersonate from CI"
+  value       = google_service_account.runtime.email
 }
