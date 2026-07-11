@@ -14,8 +14,12 @@ services:
       OUTPUT_DIR: /app/generated
       PUBLIC_BASE_URL: http://localhost:8080
       CORS_ORIGINS: http://localhost:3000,http://localhost:3001
+      # Recording authenticated sites: run `make auth-capture URL=...` to create
+      # auth/state.json; it is picked up automatically (ignored if absent).
+      DEMOMOTION_AUTH_STATE: /app/auth/state.json
     volumes:
       - ./services/api:/app
+      - ./auth:/app/auth
       - api_generated:/app/generated
     ports:
       - "8080:8080"

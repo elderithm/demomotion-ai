@@ -22,3 +22,10 @@ variable "basic_auth_pass" {
   default   = ""
   sensitive = true
 }
+
+# GitHub repo (owner/name) allowed to federate into this project's CI via
+# Workload Identity Federation. Only this repo's Actions can mint credentials.
+variable "github_repository" {
+  type    = string
+  default = "elderithm/demomotion-ai"
+}

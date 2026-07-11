@@ -193,6 +193,120 @@ GCS_BUCKET=your-output-bucket
 6. Watch job progress.
 7. Play or download the generated MP4.
 
+## Recording sites that need a login
+
+DemoMotion never handles your credentials. Instead, capture a browser session
+once and reuse it (Playwright `storageState`):
+
+```bash
+make auth-capture URL=https://your-app.example.com
+```
+
+A real browser window opens — log in, then press Enter. The session is saved to
+`auth/state.json`, which docker-compose mounts into the API; the recorder picks
+it up automatically (`DEMOMOTION_AUTH_STATE`) and ignores it when absent.
+`auth/state.json` holds session cookies, so it is gitignored — never commit it.
+
+Automated login (login-form detection, 2FA, encrypted credential storage) is out
+of scope for the OSS engine and belongs to a hosted edition.
+
+## Use it in your own CI
+
+Other repos generate a video with the reusable GitHub Action — no need to clone
+this repo:
+
+```yaml
+# .github/workflows/demo.yml in your repo
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: elderithm/demomotion-ai@v1
+        with:
+          url: https://your-app.example.com
+          goal: Explain the app for a first-time visitor, focusing on the key features.
+      - uses: actions/upload-artifact@v4
+        with: { name: demo-video, path: demo.mp4 }
+```
+
+The action pulls the published API image (`ghcr.io/elderithm/demomotion-ai-api`),
+runs it on the runner, generates the video, and writes it to `demo.mp4`. A
+copy-paste example lives in [`examples/github-actions/demo.yml`](examples/github-actions/demo.yml).
+
+### Tailored narration with Gemini — keyless (recommended)
+
+For narration tailored to your site you need Google Cloud. **Do not create a
+service-account key.** Use keyless [Workload Identity Federation](https://github.com/google-github-actions/auth#preferred-direct-workload-identity-federation):
+the runner's short-lived OIDC token is exchanged for temporary credentials, so
+nothing long-lived is ever stored.
+
+```yaml
+permissions:
+  contents: read
+  id-token: write            # lets the runner mint an OIDC token
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/auth@v2   # keyless — no key file
+        with:
+          project_id: your-project-id
+          workload_identity_provider: projects/123/locations/global/workloadIdentityPools/github/providers/github
+      - uses: elderithm/demomotion-ai@v1
+        with:
+          url: https://your-app.example.com
+          goal: Explain the app for a first-time visitor, focusing on the key features.
+          ai_provider: vertex
+          tts_provider: google
+          storage_provider: gcs
+          gcp_project_id: your-project-id
+      - uses: actions/upload-artifact@v4
+        with: { name: demo-video, path: demo.mp4 }
+```
+
+The action auto-detects the credentials the `auth` step provides and mounts them
+into the container. A long-lived key (`google_credentials_json`) is still
+accepted as a fallback, but discouraged.
+
+### Recording the page you changed
+
+Point `url` at the specific page (path included), from either:
+
+- a per-PR **preview deploy** — pass its URL, e.g.
+  `url: ${{ steps.deploy.outputs.preview-url }}/features/new-thing`
+  ([`examples/github-actions/pr-preview.yml`](examples/github-actions/pr-preview.yml)); or
+- the app **built and started on the runner** — the action uses `--network host`,
+  so `url: http://localhost:3000/features/new-thing` works
+  ([`examples/github-actions/run-on-runner.yml`](examples/github-actions/run-on-runner.yml)).
+
+Put the change's intent in `goal` (e.g. "Introduce the new bulk-export feature")
+so the narration reflects it, and use a `matrix` of paths to cover several
+changed pages.
+
+To post the result back to the PR:
+
+- **Download link (default)** — upload the MP4 and comment its `upload-artifact`
+  `artifact-url` with the real expiry date
+  ([`examples/github-actions/pr-comment.yml`](examples/github-actions/pr-comment.yml)).
+  The link requires sign-in, downloads a zip (not playable), kept ~90 days.
+- **Playable link** — with `storage_provider: gcs`, the action returns a signed
+  URL as its `video-url` output; comment that and clicking it plays the video in
+  the browser ([`examples/github-actions/pr-comment-playable.yml`](examples/github-actions/pr-comment-playable.yml)).
+  The signed URL is valid ~7 days (Cloud Storage V4 maximum). GitHub does not
+  embed external videos inline, so it opens in a new tab.
+
+Notes:
+- The default `demo` providers need no credentials but produce generic narration.
+- The `url` must be reachable from the GitHub runner (a public URL, a preview
+  deploy, or a service you start on the runner). For login-gated pages, capture a
+  session locally with `make auth-capture` and pass it via `auth_state_json`.
+- Publishing: `.github/workflows/publish-image.yml` pushes the API image to GHCR
+  on version tags. After the first publish, set the package to **Public** so
+  consumers can pull it.
+
+`.github/workflows/generate-demo.yml` is a self-contained variant that runs the
+full stack from a checkout of this repo (handy for trying it here).
+
 ## Docker notes
 
 The API container uses the official Playwright Python image and installs ffmpeg, so Chromium recording works inside Docker. Generated files are stored in a Docker volume named `api_generated`.

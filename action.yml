@@ -1,0 +1,133 @@
+name: DemoMotion AI
+description: Generate a narrated demo video from a web app URL and a goal.
+branding:
+  icon: video
+  color: blue
+
+inputs:
+  url:
+    description: URL to record. Must be reachable from the runner (public URL, a preview deploy, or a service you started on the runner).
+    required: true
+  goal:
+    description: What the demo should show.
+    required: true
+  language:
+    description: Narration language (e.g. en-US, ja-JP).
+    default: en-US
+  aspect_ratio:
+    description: "16:9 or 9:16."
+    default: "16:9"
+  output:
+    description: Path to write the generated MP4.
+    default: demo.mp4
+  image:
+    description: API container image to run.
+    default: ghcr.io/elderithm/demomotion-ai-api:latest
+  ai_provider:
+    description: "demo (no credentials, generic narration) or vertex (Gemini, tailored — needs Google Cloud credentials)."
+    default: demo
+  tts_provider:
+    description: "demo or google."
+    default: demo
+  storage_provider:
+    description: "local or gcs."
+    default: local
+  gcp_project_id:
+    description: Google Cloud project id (for vertex / gcs).
+    default: ""
+  google_credentials_json:
+    description: >-
+      DEPRECATED / discouraged. A long-lived Google Cloud service-account key
+      JSON. Prefer keyless Workload Identity Federation: run
+      google-github-actions/auth before this action and leave this empty.
+    default: ""
+  auth_state_json:
+    description: Playwright storageState JSON (pass via a secret) to record a login-gated site.
+    default: ""
+
+outputs:
+  video-path:
+    description: Path to the generated MP4.
+    value: ${{ steps.generate.outputs.video-path }}
+  video-url:
+    description: >-
+      The job's video_url — a time-limited signed URL when storage_provider=gcs
+      (playable in a browser), or a relative /download path for local storage.
+    value: ${{ steps.generate.outputs.video-url }}
+
+runs:
+  using: composite
+  steps:
+    - id: generate
+      shell: bash
+      env:
+        DM_URL: ${{ inputs.url }}
+        DM_GOAL: ${{ inputs.goal }}
+        DM_LANG: ${{ inputs.language }}
+        DM_ASPECT: ${{ inputs.aspect_ratio }}
+        DM_OUTPUT: ${{ inputs.output }}
+        DM_IMAGE: ${{ inputs.image }}
+        DM_AI: ${{ inputs.ai_provider }}
+        DM_TTS: ${{ inputs.tts_provider }}
+        DM_STORE: ${{ inputs.storage_provider }}
+        DM_GCP_PROJECT: ${{ inputs.gcp_project_id }}
+        DM_GCP_CREDS: ${{ inputs.google_credentials_json }}
+        DM_AUTH: ${{ inputs.auth_state_json }}
+      run: |
+        set -euo pipefail
+
+        args=(-d --name demomotion-api --network host
+          -e "AI_PROVIDER=$DM_AI" -e "TTS_PROVIDER=$DM_TTS" -e "STORAGE_PROVIDER=$DM_STORE")
+
+        if [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]; then
+          # Keyless: a prior `google-github-actions/auth` (Workload Identity
+          # Federation) step wrote short-lived Application Default Credentials
+          # under RUNNER_TEMP. Mount them so the container authenticates without a
+          # long-lived key. No secrets stored anywhere.
+          args+=(-v "$RUNNER_TEMP:$RUNNER_TEMP:ro"
+            -e "GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
+            -e "GCP_PROJECT_ID=$DM_GCP_PROJECT")
+        elif [ -n "$DM_GCP_CREDS" ]; then
+          # Fallback: long-lived service-account key (discouraged).
+          printf '%s' "$DM_GCP_CREDS" > "$RUNNER_TEMP/gcp-key.json"
+          args+=(-v "$RUNNER_TEMP/gcp-key.json:/creds/key.json:ro"
+            -e "GOOGLE_APPLICATION_CREDENTIALS=/creds/key.json"
+            -e "GCP_PROJECT_ID=$DM_GCP_PROJECT")
+        fi
+        if [ -n "$DM_AUTH" ]; then
+          mkdir -p "$RUNNER_TEMP/dm-auth"
+          printf '%s' "$DM_AUTH" > "$RUNNER_TEMP/dm-auth/state.json"
+          args+=(-v "$RUNNER_TEMP/dm-auth:/app/auth:ro" -e "DEMOMOTION_AUTH_STATE=/app/auth/state.json")
+        fi
+
+        docker run "${args[@]}" "$DM_IMAGE"
+
+        echo "Waiting for the API..."
+        for i in $(seq 1 60); do
+          curl -sf http://localhost:8080/healthz >/dev/null && break || sleep 5
+        done
+
+        payload=$(python3 -c 'import json,os; print(json.dumps({"url":os.environ["DM_URL"],"goal":os.environ["DM_GOAL"],"language":os.environ["DM_LANG"],"aspect_ratio":os.environ["DM_ASPECT"]}))')
+        job=$(curl -sf -X POST http://localhost:8080/v1/video-jobs -H 'Content-Type: application/json' -d "$payload" \
+          | python3 -c 'import sys,json; print(json.load(sys.stdin)["id"])')
+        echo "job=$job"
+
+        for i in $(seq 1 180); do
+          body=$(curl -sf http://localhost:8080/v1/video-jobs/$job)
+          status=$(echo "$body" | python3 -c 'import sys,json; print(json.load(sys.stdin)["status"])')
+          echo "status=$status"
+          [ "$status" = completed ] && break
+          if [ "$status" = failed ]; then echo "$body"; docker logs demomotion-api || true; exit 1; fi
+          sleep 5
+        done
+
+        curl -sf http://localhost:8080/v1/video-jobs/$job/download -o "$DM_OUTPUT"
+        ls -lh "$DM_OUTPUT"
+        echo "video-path=$DM_OUTPUT" >> "$GITHUB_OUTPUT"
+
+        # Surface the hosted URL (signed GCS URL when storage_provider=gcs) so a
+        # later step can post a playable link.
+        video_url=$(echo "$body" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("video_url") or "")')
+        echo "video-url=$video_url" >> "$GITHUB_OUTPUT"
+
+        docker rm -f demomotion-api >/dev/null 2>&1 || true

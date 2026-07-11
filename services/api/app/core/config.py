@@ -1,9 +1,16 @@
 from functools import lru_cache
+
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     app_env: str = "local"
+    # Optional Playwright storageState file (captured with `make auth-capture`) so
+    # the recorder can demo pages behind a login. Never commit this file.
+    auth_state_path: str | None = Field(
+        default=None, validation_alias=AliasChoices("DEMOMOTION_AUTH_STATE", "AUTH_STATE_PATH")
+    )
     # Pluggable providers so the engine runs credential-free by default ("demo")
     # and a hosted/commercial build can swap in cloud services:
     #   ai_provider:      demo  | vertex   (scenario + narration planning)

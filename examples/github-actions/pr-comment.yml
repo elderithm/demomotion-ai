@@ -1,0 +1,58 @@
+# Generate a demo video on each PR and post the artifact's download link back as
+# a PR comment. Copy into your repo's .github/workflows.
+#
+# Note: the link is a GitHub *artifact* page — clicking it requires sign-in +
+# repo access and downloads a zip (not inline-playable), retained ~90 days. For a
+# playable link, host the MP4 (e.g. GCS) and comment that URL instead.
+name: Demo (PR comment)
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  actions: read          # to read the artifact's expiry
+  pull-requests: write   # to post the comment
+  id-token: write        # only if using keyless vertex below
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Make the changed page reachable (preview deploy or run-on-runner), then:
+      - uses: elderithm/demomotion-ai@v1
+        with:
+          url: https://your-app.example.com/features/new-thing
+          goal: Introduce the feature changed in this PR for a first-time visitor.
+
+      - id: upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: demo-video
+          path: demo.mp4
+
+      - uses: actions/github-script@v7
+        env:
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        with:
+          script: |
+            // Look up the artifact's real expiry (respects repo retention settings).
+            const arts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner, repo: context.repo.repo, run_id: context.runId,
+            });
+            const art = arts.data.artifacts.find((a) => a.name === 'demo-video');
+            const expires = art?.expires_at ? new Date(art.expires_at).toISOString().slice(0, 10) : 'unknown';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: [
+                '🎬 **Demo video generated** for this PR.',
+                '',
+                `▶️ [Download the video artifact](${process.env.ARTIFACT_URL})`,
+                '',
+                `_GitHub artifact — requires sign-in and downloads a zip. Available to download until **${expires}**._`,
+              ].join('\n'),
+            });

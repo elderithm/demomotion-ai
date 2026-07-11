@@ -1,0 +1,37 @@
+# Automated dependency-update PRs. Each PR runs through ci.yml (build, typecheck,
+# compile, tests, terraform validate) automatically, since Dependabot PRs are
+# ordinary pull requests. Minor/patch bumps are grouped to cut noise; majors come
+# as individual PRs so they can be reviewed carefully.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: pip
+    directory: "/services/api"
+    schedule:
+      interval: weekly
+    groups:
+      pip-minor-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directory: "/services/api"
+    schedule:
+      interval: weekly
