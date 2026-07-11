@@ -283,12 +283,17 @@ Put the change's intent in `goal` (e.g. "Introduce the new bulk-export feature")
 so the narration reflects it, and use a `matrix` of paths to cover several
 changed pages.
 
-To post the result back to the PR, upload the MP4 and comment its
-`upload-artifact` `artifact-url`
-([`examples/github-actions/pr-comment.yml`](examples/github-actions/pr-comment.yml)).
-That link is a GitHub artifact — it requires sign-in, downloads a zip (not
-inline-playable), and is kept ~90 days; host the file (e.g. GCS) if you want a
-playable, longer-lived URL.
+To post the result back to the PR:
+
+- **Download link (default)** — upload the MP4 and comment its `upload-artifact`
+  `artifact-url` with the real expiry date
+  ([`examples/github-actions/pr-comment.yml`](examples/github-actions/pr-comment.yml)).
+  The link requires sign-in, downloads a zip (not playable), kept ~90 days.
+- **Playable link** — with `storage_provider: gcs`, the action returns a signed
+  URL as its `video-url` output; comment that and clicking it plays the video in
+  the browser ([`examples/github-actions/pr-comment-playable.yml`](examples/github-actions/pr-comment-playable.yml)).
+  The signed URL is valid ~7 days (Cloud Storage V4 maximum). GitHub does not
+  embed external videos inline, so it opens in a new tab.
 
 Notes:
 - The default `demo` providers need no credentials but produce generic narration.

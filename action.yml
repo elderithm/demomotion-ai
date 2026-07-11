@@ -49,6 +49,11 @@ outputs:
   video-path:
     description: Path to the generated MP4.
     value: ${{ steps.generate.outputs.video-path }}
+  video-url:
+    description: >-
+      The job's video_url — a time-limited signed URL when storage_provider=gcs
+      (playable in a browser), or a relative /download path for local storage.
+    value: ${{ steps.generate.outputs.video-url }}
 
 runs:
   using: composite
@@ -119,4 +124,10 @@ runs:
         curl -sf http://localhost:8080/v1/video-jobs/$job/download -o "$DM_OUTPUT"
         ls -lh "$DM_OUTPUT"
         echo "video-path=$DM_OUTPUT" >> "$GITHUB_OUTPUT"
+
+        # Surface the hosted URL (signed GCS URL when storage_provider=gcs) so a
+        # later step can post a playable link.
+        video_url=$(echo "$body" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("video_url") or "")')
+        echo "video-url=$video_url" >> "$GITHUB_OUTPUT"
+
         docker rm -f demomotion-api >/dev/null 2>&1 || true

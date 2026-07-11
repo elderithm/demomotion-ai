@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: read          # to read the artifact's expiry
   pull-requests: write   # to post the comment
   id-token: write        # only if using keyless vertex below
 
@@ -37,6 +38,12 @@ jobs:
           ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
         with:
           script: |
+            // Look up the artifact's real expiry (respects repo retention settings).
+            const arts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner, repo: context.repo.repo, run_id: context.runId,
+            });
+            const art = arts.data.artifacts.find((a) => a.name === 'demo-video');
+            const expires = art?.expires_at ? new Date(art.expires_at).toISOString().slice(0, 10) : 'unknown';
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -46,6 +53,6 @@ jobs:
                 '',
                 `▶️ [Download the video artifact](${process.env.ARTIFACT_URL})`,
                 '',
-                '_GitHub artifact — requires sign-in, downloads a zip, kept ~90 days._',
+                `_GitHub artifact — requires sign-in and downloads a zip. Available to download until **${expires}**._`,
               ].join('\n'),
             });
