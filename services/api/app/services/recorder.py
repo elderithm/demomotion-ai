@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 
 from playwright.async_api import async_playwright
 
+from app.core.config import get_settings
 from app.models.video_job import DemoScenario
 
 # Find the element that actually scrolls (Notion and many apps scroll an inner
@@ -69,6 +70,11 @@ class BrowserRecorder:
             "user_agent": default_ua.replace("HeadlessChrome", "Chrome"),
             "locale": "ja-JP",
         }
+        # Reuse a captured login session (Playwright storageState) so authenticated
+        # pages can be recorded. Ignored if the file is absent.
+        auth_state = get_settings().auth_state_path
+        if auth_state and Path(auth_state).exists():
+            kwargs["storage_state"] = auth_state
         if record_dir is not None:
             kwargs["record_video_dir"] = str(record_dir)
             kwargs["record_video_size"] = viewport

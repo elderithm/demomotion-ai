@@ -1,0 +1,59 @@
+# Sample CI workflow: generate a narrated demo video and upload it as an artifact.
+#
+# Runs entirely on the credential-free `demo` providers, so it needs no secrets.
+# It records the bundled demo-app by default — point `url` at your own public app
+# (or wire in AI_PROVIDER=vertex + Google Cloud credentials) to record for real.
+name: Generate demo video
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: URL to record (reachable from the api container)
+        default: http://demo-app:3001
+      goal:
+        description: What the demo should show
+        default: Explain this app clearly for a first-time visitor, focusing on the 3 or 4 most important points.
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start the stack (demo providers, no cloud credentials)
+        run: docker compose up -d --build
+
+      - name: Wait for the API
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8080/healthz && break || sleep 5
+          done
+
+      - name: Generate the video
+        run: |
+          payload=$(printf '{"url":"%s","goal":"%s","language":"en-US","aspect_ratio":"16:9"}' \
+            "${{ inputs.url }}" "${{ inputs.goal }}")
+          job=$(curl -sf -X POST http://localhost:8080/v1/video-jobs \
+            -H 'Content-Type: application/json' -d "$payload" \
+            | python3 -c 'import sys, json; print(json.load(sys.stdin)["id"])')
+          echo "job=$job"
+          for i in $(seq 1 120); do
+            body=$(curl -sf http://localhost:8080/v1/video-jobs/$job)
+            status=$(echo "$body" | python3 -c 'import sys, json; print(json.load(sys.stdin)["status"])')
+            echo "status=$status"
+            [ "$status" = "completed" ] && break
+            if [ "$status" = "failed" ]; then echo "$body"; exit 1; fi
+            sleep 5
+          done
+          curl -sf http://localhost:8080/v1/video-jobs/$job/download -o demo.mp4
+          ls -lh demo.mp4
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-video
+          path: demo.mp4
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

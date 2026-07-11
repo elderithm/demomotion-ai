@@ -55,6 +55,9 @@ override.tf.json
 credentials.json
 service-account*.json
 
+# Captured login sessions (Playwright storageState) — contain auth cookies.
+auth/*.json
+
 # ---- Editor / OS ----
 .DS_Store
 Thumbs.db

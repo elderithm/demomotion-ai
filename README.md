@@ -193,6 +193,32 @@ GCS_BUCKET=your-output-bucket
 6. Watch job progress.
 7. Play or download the generated MP4.
 
+## Recording sites that need a login
+
+DemoMotion never handles your credentials. Instead, capture a browser session
+once and reuse it (Playwright `storageState`):
+
+```bash
+make auth-capture URL=https://your-app.example.com
+```
+
+A real browser window opens — log in, then press Enter. The session is saved to
+`auth/state.json`, which docker-compose mounts into the API; the recorder picks
+it up automatically (`DEMOMOTION_AUTH_STATE`) and ignores it when absent.
+`auth/state.json` holds session cookies, so it is gitignored — never commit it.
+
+Automated login (login-form detection, 2FA, encrypted credential storage) is out
+of scope for the OSS engine and belongs to a hosted edition.
+
+## Continuous integration
+
+`.github/workflows/generate-demo.yml` is a runnable sample that starts the stack
+with the credential-free `demo` providers, generates a video, and uploads the
+MP4 as a build artifact. Trigger it from the Actions tab (**Run workflow**) with
+a URL and goal, or copy it into your own repo's CI to render a fresh demo on each
+release. Point it at `AI_PROVIDER=vertex` + Google Cloud credentials for
+production-quality output.
+
 ## Docker notes
 
 The API container uses the official Playwright Python image and installs ffmpeg, so Chromium recording works inside Docker. Generated files are stored in a Docker volume named `api_generated`.

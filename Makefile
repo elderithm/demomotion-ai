@@ -1,4 +1,4 @@
-.PHONY: install dev-api dev-web dev-demo test build compose-up compose-down compose-logs compose-build compose-clean
+.PHONY: install dev-api dev-web dev-demo auth-capture test build compose-up compose-down compose-logs compose-build compose-clean
 
 install:
 	pnpm install
@@ -13,6 +13,11 @@ dev-web:
 
 dev-demo:
 	pnpm --filter @demomotion/demo-app dev -- -p 3001
+
+# Capture a logged-in session for recording authenticated sites.
+# Usage: make auth-capture URL=https://your-app.example.com
+auth-capture:
+	cd services/api && . .venv/bin/activate && python -m app.tools.auth_capture --url "$(URL)" --out "$(CURDIR)/auth/state.json"
 
 compose-up:
 	docker compose up --build
