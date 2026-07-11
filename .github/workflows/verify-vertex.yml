@@ -14,9 +14,10 @@ on:
       goal:
         description: What the demo should show
         default: Explain this site for a first-time visitor, focusing on the 3 or 4 most important points.
-  # Catch pipeline/keyless-auth regressions weekly without per-PR cost.
-  schedule:
-    - cron: "0 3 * * 1"
+  # Optional periodic canary for pipeline/keyless-auth regressions. Disabled for
+  # now (each run costs GCP and depends on an external site). Uncomment to enable.
+  # schedule:
+  #   - cron: "0 3 * * 1"   # weekly, Mondays 03:00 UTC
 
 permissions:
   contents: read
