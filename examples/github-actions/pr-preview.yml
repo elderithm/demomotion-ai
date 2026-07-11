@@ -1,0 +1,44 @@
+# Record the CHANGED page on each pull request, using a per-PR preview deploy.
+# Copy into your repo at .github/workflows/demo-pr.yml and swap in your deploy step.
+name: Demo (PR preview)
+
+on:
+  pull_request:
+
+# Needed only for keyless Gemini narration (Workload Identity Federation).
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1) Deploy this PR to a preview environment that outputs its URL.
+      #    Replace with your provider's action (Vercel, Netlify, Cloud Run, ...).
+      - id: deploy
+        run: echo "preview-url=https://your-app-pr-${{ github.event.number }}.example.app" >> "$GITHUB_OUTPUT"
+
+      # 2) (Optional) keyless Google Cloud auth for tailored Gemini narration.
+      - uses: google-github-actions/auth@v2
+        with:
+          project_id: your-project-id
+          workload_identity_provider: projects/123/locations/global/workloadIdentityPools/github/providers/github
+
+      # 3) Record the specific page you changed — include its path in the URL.
+      - uses: elderithm/demomotion-ai@v1
+        with:
+          url: ${{ steps.deploy.outputs.preview-url }}/features/new-thing
+          goal: Introduce the feature changed in this PR for a first-time visitor.
+          ai_provider: vertex
+          tts_provider: google
+          gcp_project_id: your-project-id
+          # Login-gated page? Capture locally with `make auth-capture` and pass it:
+          # auth_state_json: ${{ secrets.DEMOMOTION_AUTH_STATE }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-video
+          path: demo.mp4

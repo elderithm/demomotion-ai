@@ -268,6 +268,21 @@ The action auto-detects the credentials the `auth` step provides and mounts them
 into the container. A long-lived key (`google_credentials_json`) is still
 accepted as a fallback, but discouraged.
 
+### Recording the page you changed
+
+Point `url` at the specific page (path included), from either:
+
+- a per-PR **preview deploy** — pass its URL, e.g.
+  `url: ${{ steps.deploy.outputs.preview-url }}/features/new-thing`
+  ([`examples/github-actions/pr-preview.yml`](examples/github-actions/pr-preview.yml)); or
+- the app **built and started on the runner** — the action uses `--network host`,
+  so `url: http://localhost:3000/features/new-thing` works
+  ([`examples/github-actions/run-on-runner.yml`](examples/github-actions/run-on-runner.yml)).
+
+Put the change's intent in `goal` (e.g. "Introduce the new bulk-export feature")
+so the narration reflects it, and use a `matrix` of paths to cover several
+changed pages.
+
 Notes:
 - The default `demo` providers need no credentials but produce generic narration.
 - The `url` must be reachable from the GitHub runner (a public URL, a preview

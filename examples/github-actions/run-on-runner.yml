@@ -1,0 +1,52 @@
+# Record the CHANGED page by building and running your app on the runner itself
+# (no preview environment needed). The action runs with --network host, so it can
+# reach http://localhost:<port> on the runner. Copy into your repo's .github/workflows.
+name: Demo (run on runner)
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+  id-token: write   # only for keyless Gemini narration below
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    # Record several changed pages in parallel by listing their paths here.
+    strategy:
+      matrix:
+        page:
+          - /features/new-thing
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1) Build and start your app on localhost (adjust to your stack).
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: npm ci && npm run build
+      - name: Start the app
+        run: npm run start &
+      - name: Wait until it is up
+        run: npx --yes wait-on http://localhost:3000
+
+      # 2) (Optional) keyless Google Cloud auth for tailored Gemini narration.
+      - uses: google-github-actions/auth@v2
+        with:
+          project_id: your-project-id
+          workload_identity_provider: projects/123/locations/global/workloadIdentityPools/github/providers/github
+
+      # 3) Record the changed page directly (path from the matrix).
+      - uses: elderithm/demomotion-ai@v1
+        with:
+          url: http://localhost:3000${{ matrix.page }}
+          goal: Explain the page changed in this PR for a first-time visitor.
+          ai_provider: vertex
+          tts_provider: google
+          gcp_project_id: your-project-id
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-video-${{ strategy.job-index }}
+          path: demo.mp4
