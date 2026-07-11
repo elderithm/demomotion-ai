@@ -49,13 +49,17 @@ a JSON object with these keys:
   to what is actually on the page. Plain text only, no markdown, and do not
   mention that it was AI-generated.
 - "actions": choose 2 to 4 items from the "Clickable elements" list to click
-  through, in order, giving a guided tour of DIFFERENT sections/tabs so the viewer
-  sees content beyond the first screen. Spread them across the list — do NOT pick
-  only the first item, which is usually already open by default. Copy each label
-  EXACTLY as written above. If the page has section tabs (e.g. overview, schedule,
-  rules, FAQ), pick a variety of them. Never include anything that logs out,
-  deletes data, submits a form, or leaves the site. Return an empty array only if
-  there are genuinely no useful things to click."""
+  through, in order, giving a guided tour so the viewer sees the product actually
+  respond. Copy each label EXACTLY as written above. INCLUDE the page's primary
+  call-to-action buttons (e.g. "Get started", "Create plan", "Generate", "Try it",
+  "Show more") — clicking them reveals or generates on-page content, which is
+  exactly what a demo should show. If the page has section tabs (overview,
+  schedule, rules, FAQ), also spread picks across DIFFERENT tabs. Prefer buttons
+  that produce a visible result on the same page over ones already open by default.
+  Only EXCLUDE actions that are irreversible or leave the product: log out, delete,
+  make a payment/purchase, or navigate to another site. A button that just shows a
+  result, opens a panel, or advances a form is fine to click. Return an empty array
+  only if there are genuinely no useful things to click."""
 
         response = client.models.generate_content(
             model=settings.gemini_model,

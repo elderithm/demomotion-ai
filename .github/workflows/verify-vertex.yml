@@ -14,6 +14,9 @@ on:
       goal:
         description: What the demo should show
         default: Explain this site for a first-time visitor, focusing on the 3 or 4 most important points.
+      language:
+        description: Narration language (BCP-47, e.g. ja-JP, en-US)
+        default: ja-JP
   # Optional periodic canary for pipeline/keyless-auth regressions. Disabled for
   # now (each run costs GCP and depends on an external site). Uncomment to enable.
   # schedule:
@@ -53,7 +56,7 @@ jobs:
           # inputs are only set on manual runs; fall back for scheduled runs.
           url: ${{ inputs.url || 'http://localhost:3001' }}
           goal: ${{ inputs.goal || 'Explain this product for a first-time visitor, focusing on the 3 or 4 most important points.' }}
-          language: ja-JP
+          language: ${{ inputs.language || 'ja-JP' }}
           ai_provider: vertex
           tts_provider: google
           storage_provider: local

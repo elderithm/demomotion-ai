@@ -123,6 +123,8 @@ class BrowserRecorder:
 
             # Run the planned interactions (Gemini-chosen tabs/buttons, or the demo
             # app's data-testid steps), scrolling through the result of each click.
+            planned = [s.get("text") or s.get("selector") for s in scenario.selectors]
+            print(f"[recorder] planned actions: {planned}", flush=True)
             clicked = False
             for step in scenario.selectors:
                 action = step.get("action")
@@ -131,6 +133,7 @@ class BrowserRecorder:
                     if action == "click_text" and step.get("text"):
                         await self._click_by_text(page, url, step["text"])
                         clicked = True
+                        print(f"[recorder] clicked: {step['text']!r}", flush=True)
                         # Small reveal near the click; the full traversal below is
                         # what guarantees the whole page is shown.
                         await self._scroll_through(page, steps=2)
@@ -143,9 +146,10 @@ class BrowserRecorder:
                     elif action == "wait" and selector:
                         await page.locator(selector).first.wait_for(timeout=4000)
                         await page.wait_for_timeout(1500)
-                except Exception:
+                except Exception as exc:
                     # Best-effort: a planned target may not exist on an arbitrary
                     # site. Skip it and keep recording rather than failing the job.
+                    print(f"[recorder] action skipped ({action} {step.get('text') or selector!r}): {exc!r}", flush=True)
                     continue
 
             # Deterministically page through the ENTIRE page top→bottom so the

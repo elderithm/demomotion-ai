@@ -6,13 +6,33 @@ import struct
 from app.core.config import get_settings
 
 
+# Terms that TTS engines read with the wrong on-yomi/kun-yomi in this context,
+# rewritten to an unambiguous kana reading for the AUDIO only. Subtitles keep the
+# original text, so this changes pronunciation without touching the on-screen
+# caption. Extend as new mispronunciations surface.
+_READING_FIXES = {
+    # "one line" (of text). Engines otherwise read 一行 as "いっこう" (a party/group).
+    "一行": "いちぎょう",
+}
+
+
+def _normalize_for_speech(text: str, language: str) -> str:
+    if language.startswith("ja"):
+        for src, dst in _READING_FIXES.items():
+            text = text.replace(src, dst)
+    return text
+
+
 class SpeechService:
     async def synthesize(self, text: str, language: str, output_path: Path) -> Path:
         settings = get_settings()
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        # Fix known mispronunciations for the spoken audio only; the caller keeps
+        # the original `text` for subtitles.
+        speech_text = _normalize_for_speech(text, language)
         if settings.tts_provider == "google":
             try:
-                return await self._google_tts(text, language, output_path)
+                return await self._google_tts(speech_text, language, output_path)
             except Exception as exc:
                 # Keep narration resilient: if cloud TTS fails, fall back below.
                 # Log the reason so the placeholder tone is not silent.
@@ -22,7 +42,7 @@ class SpeechService:
             # (no cloud credentials required). Falls back to a beep if it fails
             # (e.g. no internet access).
             try:
-                return await self._gtts(text, language, output_path)
+                return await self._gtts(speech_text, language, output_path)
             except Exception:
                 pass
         self._write_placeholder_wav(output_path, seconds=max(5, min(18, len(text) // 18)))
