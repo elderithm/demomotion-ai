@@ -19,7 +19,7 @@ jobs:
   generate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Start the stack (demo providers, no cloud credentials)
         run: docker compose up -d --build
@@ -49,7 +49,7 @@ jobs:
           curl -sf http://localhost:8080/v1/video-jobs/$job/download -o demo.mp4
           ls -lh demo.mp4
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: demo-video
           path: demo.mp4
