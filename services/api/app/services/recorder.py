@@ -18,6 +18,46 @@ _TAG_SCROLLER = """() => {
   return !!els[0];
 }"""
 
+# Headless Chromium does not paint a mouse pointer, so real clicks are invisible
+# in the recording — the result just appears and the viewer never sees the button
+# get pressed. Inject a synthetic cursor that follows mouse moves and can pulse on
+# click, so interactions are visible on screen. Runs at document start on every
+# navigation (via add_init_script).
+_CURSOR = """() => {
+  if (window.__dmCursorReady) return;
+  window.__dmCursorReady = true;
+  const ensure = () => {
+    if (document.getElementById('__dm_cursor') || !document.body) return;
+    const c = document.createElement('div');
+    c.id = '__dm_cursor';
+    Object.assign(c.style, {
+      position: 'fixed', left: '0px', top: '0px', width: '20px', height: '20px',
+      borderRadius: '50%', background: 'rgba(20,24,40,0.35)',
+      border: '2px solid rgba(255,255,255,0.95)',
+      boxShadow: '0 2px 10px rgba(0,0,0,0.45)', zIndex: '2147483647',
+      pointerEvents: 'none', transform: 'translate(-50%,-50%)',
+      transition: 'transform .08s ease-out',
+    });
+    (document.body || document.documentElement).appendChild(c);
+  };
+  document.addEventListener('DOMContentLoaded', ensure);
+  ensure();
+  document.addEventListener('mousemove', (e) => {
+    const c = document.getElementById('__dm_cursor');
+    if (c) { c.style.left = e.clientX + 'px'; c.style.top = e.clientY + 'px'; }
+  }, true);
+  window.__dmClickPulse = () => {
+    const c = document.getElementById('__dm_cursor');
+    if (!c) return;
+    c.animate(
+      [{ transform: 'translate(-50%,-50%) scale(1)', background: 'rgba(102,88,255,0.5)' },
+       { transform: 'translate(-50%,-50%) scale(0.55)', background: 'rgba(102,88,255,0.8)' },
+       { transform: 'translate(-50%,-50%) scale(1)', background: 'rgba(20,24,40,0.35)' }],
+      { duration: 320, easing: 'ease-out' }
+    );
+  };
+}"""
+
 # Visible labels of clickable elements (tabs, buttons, links) for the planner.
 _CLICKABLES = """() => {
   const out = [], seen = new Set();
@@ -125,6 +165,10 @@ class BrowserRecorder:
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
             context = await self._context(browser, viewport, language, record_dir=video_dir)
+            # Paint a visible cursor so clicks read as real interactions on screen.
+            # add_init_script injects source verbatim (it does not call it like
+            # evaluate does), so wrap the function as an IIFE to run it.
+            await context.add_init_script(f"({_CURSOR})()")
             page = await context.new_page()
             lead_in = await _prepare(page, url)
             await page.wait_for_timeout(1500)
@@ -269,7 +313,20 @@ class BrowserRecorder:
             if host and host != urlparse(base_url).netloc:
                 return
         await loc.scroll_into_view_if_needed(timeout=3000)
-        await page.wait_for_timeout(600)
+        await page.wait_for_timeout(500)
+        # Glide the visible cursor to the target and pulse it, so the recording
+        # shows the button being approached and pressed (not a result popping in).
+        try:
+            box = await loc.bounding_box()
+            if box:
+                cx = box["x"] + box["width"] / 2
+                cy = box["y"] + box["height"] / 2
+                await page.mouse.move(cx, cy, steps=25)
+                await page.wait_for_timeout(450)
+                await page.evaluate("() => window.__dmClickPulse && window.__dmClickPulse()")
+                await page.wait_for_timeout(200)
+        except Exception:
+            pass
         try:
             await loc.click(timeout=3000)
         except Exception:
