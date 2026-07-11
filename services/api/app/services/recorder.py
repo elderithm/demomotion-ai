@@ -131,7 +131,9 @@ class BrowserRecorder:
                     if action == "click_text" and step.get("text"):
                         await self._click_by_text(page, url, step["text"])
                         clicked = True
-                        await self._scroll_through(page, steps=3)
+                        # Small reveal near the click; the full traversal below is
+                        # what guarantees the whole page is shown.
+                        await self._scroll_through(page, steps=2)
                     elif action == "click" and selector:
                         await page.locator(selector).first.click(timeout=4000)
                         await page.wait_for_timeout(900)
@@ -146,9 +148,10 @@ class BrowserRecorder:
                     # site. Skip it and keep recording rather than failing the job.
                     continue
 
-            # Walk through the (remaining) content so the video isn't a static frame.
-            await self._scroll_through(page, steps=3 if clicked else 6)
-            await self._scroll_top(page)
+            # Deterministically page through the ENTIRE page top→bottom so the
+            # recording always demonstrates scrolling — regardless of whether
+            # clicks left us near the top or bottom.
+            await self._scroll_full(page)
             await page.wait_for_timeout(1500)
 
             video = page.video
@@ -185,12 +188,49 @@ class BrowserRecorder:
                 pass
             await page.wait_for_timeout(1200)
 
-    async def _scroll_top(self, page) -> None:
+    async def _scroll_full(self, page) -> None:
+        """Page through the entire scrollable content top→bottom, holding at each
+        stop, then return to the top. Viewport-based paging (not a fixed step
+        count) guarantees every section is shown on tall pages regardless of the
+        current scroll position."""
         try:
-            await page.evaluate(
-                "() => { const el = document.querySelector('[data-dm-scroll]');"
-                " (el || window).scrollTo({ top: 0, behavior: 'smooth' }); }"
-            )
+            m = await page.evaluate("""() => {
+              const el = document.querySelector('[data-dm-scroll]');
+              return {
+                total: el ? el.scrollHeight : document.documentElement.scrollHeight,
+                view: el ? el.clientHeight : window.innerHeight,
+                has: !!el,
+              };
+            }""")
+        except Exception:
+            return
+        total, view, has = m["total"], m["view"], m["has"]
+        await self._scroll_to(page, 0, has)
+        await page.wait_for_timeout(900)
+        step = max(1, int(view * 0.85))
+        y = 0
+        # Cap the stops so a very tall page can't run the recording forever.
+        for _ in range(12):
+            if y + view >= total:
+                break
+            y += step
+            await self._scroll_to(page, y, has)
+            await page.wait_for_timeout(1100)
+        # Hold at the bottom, then glide back to the top for the closing frame.
+        await self._scroll_to(page, max(0, total - view), has)
+        await page.wait_for_timeout(1100)
+        await self._scroll_to(page, 0, has)
+        await page.wait_for_timeout(1200)
+
+    async def _scroll_to(self, page, y: float, has: bool) -> None:
+        try:
+            if has:
+                await page.evaluate(
+                    "(y) => { const el = document.querySelector('[data-dm-scroll]');"
+                    " if (el) el.scrollTo({ top: y, behavior: 'smooth' }); }", y
+                )
+            else:
+                await page.evaluate("(y) => window.scrollTo({ top: y, behavior: 'smooth' })", y)
         except Exception:
             pass
 
