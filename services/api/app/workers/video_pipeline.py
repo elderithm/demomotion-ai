@@ -29,7 +29,13 @@ class VideoPipeline:
             job.add_event("Planning a demo scenario from URL and goal")
             store.save(job)
 
-            scenario = await self.planner.create_scenario(job.input)
+            # Render the page first so planning is grounded in what a visitor
+            # actually sees (client-rendered SPAs are empty in raw HTML) and can
+            # choose real on-page tabs/buttons to click.
+            page_text, clickables = await self.recorder.probe(
+                str(job.input.url), job.input.aspect_ratio
+            )
+            scenario = await self.planner.create_scenario(job.input, page_text, clickables)
             job.scenario = scenario
             job.add_event(f"Scenario generated: {scenario.title}")
             store.save(job)
