@@ -283,6 +283,13 @@ Put the change's intent in `goal` (e.g. "Introduce the new bulk-export feature")
 so the narration reflects it, and use a `matrix` of paths to cover several
 changed pages.
 
+To post the result back to the PR, upload the MP4 and comment its
+`upload-artifact` `artifact-url`
+([`examples/github-actions/pr-comment.yml`](examples/github-actions/pr-comment.yml)).
+That link is a GitHub artifact — it requires sign-in, downloads a zip (not
+inline-playable), and is kept ~90 days; host the file (e.g. GCS) if you want a
+playable, longer-lived URL.
+
 Notes:
 - The default `demo` providers need no credentials but produce generic narration.
 - The `url` must be reachable from the GitHub runner (a public URL, a preview
