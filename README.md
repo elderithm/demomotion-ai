@@ -19,7 +19,13 @@
 
 <br>
 
+**🇺🇸 English narration**
+
 ![DemoMotion AI demo](demo.gif)
+
+**🇯🇵 Japanese narration**
+
+![DemoMotion AI demo (Japanese narration)](demo-ja.gif)
 
 </div>
 
