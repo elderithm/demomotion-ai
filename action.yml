@@ -130,4 +130,6 @@ runs:
         video_url=$(echo "$body" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("video_url") or "")')
         echo "video-url=$video_url" >> "$GITHUB_OUTPUT"
 
+        echo "----- api logs (tail) -----"
+        docker logs --tail 60 demomotion-api 2>&1 || true
         docker rm -f demomotion-api >/dev/null 2>&1 || true

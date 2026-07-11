@@ -13,9 +13,10 @@ class SpeechService:
         if settings.tts_provider == "google":
             try:
                 return await self._google_tts(text, language, output_path)
-            except Exception:
+            except Exception as exc:
                 # Keep narration resilient: if cloud TTS fails, fall back below.
-                pass
+                # Log the reason so the placeholder tone is not silent.
+                print(f"[tts] Google TTS failed, using placeholder tone: {exc!r}", flush=True)
         else:
             # Demo provider: use free online gTTS so the narration is real speech
             # (no cloud credentials required). Falls back to a beep if it fails
