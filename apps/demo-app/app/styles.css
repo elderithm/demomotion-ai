@@ -17,7 +17,13 @@ p { color: #5d6880; font-size: 18px; line-height: 1.65; }
 .input { display: flex; gap: 8px; margin-top: 20px; }
 .input input { flex: 1; border: 1px solid #d7dbeb; border-radius: 14px; padding: 14px; }
 .output { margin-top: 20px; display: grid; gap: 12px; }
-.item { border-radius: 18px; background: #f4f6ff; padding: 16px; border: 1px solid #e1e5ff; }
+.loading { display: flex; align-items: center; gap: 12px; color: #5d6880; padding: 16px 4px; font-size: 16px; }
+.spinner { width: 20px; height: 20px; border: 2px solid #d7dbeb; border-top-color: #6658ff; border-radius: 50%; animation: dm-spin .7s linear infinite; }
+@keyframes dm-spin { to { transform: rotate(360deg); } }
+.item { border-radius: 18px; background: #f4f6ff; padding: 16px; border: 1px solid #e1e5ff; animation: dm-rise .45s ease-out both; }
+.output .item:nth-child(2) { animation-delay: .09s; }
+.output .item:nth-child(3) { animation-delay: .18s; }
+@keyframes dm-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 .item strong { display: block; color: #2d38a6; }
 .kanban { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 22px; }
 .col { background: #f2f4fb; border-radius: 22px; padding: 14px; min-height: 160px; }

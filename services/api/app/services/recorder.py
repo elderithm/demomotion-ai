@@ -177,8 +177,13 @@ class BrowserRecorder:
             except Exception:
                 pass
 
+            # Show a real input→submit workflow: type into the page's primary text
+            # field before clicking, so the demo reads as a user driving the product.
+            await self._demo_type(page)
+
             # Run the planned interactions (Gemini-chosen tabs/buttons, or the demo
-            # app's data-testid steps), scrolling through the result of each click.
+            # app's data-testid steps). Hold on the result afterwards rather than
+            # scrolling away immediately, so a revealed result is clearly visible.
             planned = [s.get("text") or s.get("selector") for s in scenario.selectors]
             print(f"[recorder] planned actions: {planned}", flush=True)
             clicked = False
@@ -190,9 +195,6 @@ class BrowserRecorder:
                         await self._click_by_text(page, url, step["text"])
                         clicked = True
                         print(f"[recorder] clicked: {step['text']!r}", flush=True)
-                        # Small reveal near the click; the full traversal below is
-                        # what guarantees the whole page is shown.
-                        await self._scroll_through(page, steps=2)
                     elif action == "click" and selector:
                         await page.locator(selector).first.click(timeout=4000)
                         await page.wait_for_timeout(900)
@@ -208,6 +210,12 @@ class BrowserRecorder:
                     print(f"[recorder] action skipped ({action} {step.get('text') or selector!r}): {exc!r}", flush=True)
                     continue
 
+            # If a click just revealed content (a launch plan, an expanded panel),
+            # bring the top into view and hold so the viewer registers the result
+            # before the page tour begins.
+            if clicked:
+                await self._hold_on_result(page, 2500)
+
             # Deterministically page through the ENTIRE page top→bottom so the
             # recording always demonstrates scrolling — regardless of whether
             # clicks left us near the top or bottom.
@@ -221,32 +229,62 @@ class BrowserRecorder:
                 raise RuntimeError("Playwright did not produce a video")
             return Path(await video.path()), lead_in
 
-    async def _scroll_through(self, page, steps: int) -> None:
+    async def _demo_type(self, page) -> None:
+        """If the page has a single prominent text field, animate the cursor to it
+        and re-type its content, so the recording shows a real input→submit flow.
+        Conservative on purpose: skips multi-field forms and sensitive inputs so it
+        stays safe on arbitrary sites."""
         try:
-            info = await page.evaluate("""() => {
-              const el = document.querySelector('[data-dm-scroll]');
-              return {
-                total: el ? el.scrollHeight : document.documentElement.scrollHeight,
-                cur: el ? el.scrollTop : window.scrollY,
-                has: !!el,
-              };
-            }""")
+            fields = page.locator(
+                "textarea, input[type=text], input[type=search], input:not([type])"
+            )
+            count = await fields.count()
+            # 0 → nothing to type; >3 → likely a login/checkout form, leave it alone.
+            if count == 0 or count > 3:
+                return
+            target = None
+            box = None
+            best_w = 0.0
+            for i in range(min(count, 5)):
+                el = fields.nth(i)
+                if not await el.is_visible():
+                    continue
+                b = await el.bounding_box()
+                # Only a wide field in the upper part of the page (a hero input).
+                if not b or b["y"] > 520 or b["width"] < 220:
+                    continue
+                if b["width"] > best_w:
+                    best_w, target, box = b["width"], el, b
+            if target is None or box is None:
+                return
+            value = (await target.input_value()) or ""
+            if not value.strip():
+                return
+            cx = box["x"] + box["width"] / 2
+            cy = box["y"] + box["height"] / 2
+            await page.mouse.move(cx, cy, steps=20)
+            await page.wait_for_timeout(300)
+            await target.click(timeout=3000)
+            await page.wait_for_timeout(250)
+            await target.fill("")
+            await page.wait_for_timeout(250)
+            await target.type(value, delay=35)
+            await page.wait_for_timeout(600)
+            print("[recorder] typed into primary input", flush=True)
+        except Exception as exc:
+            print(f"[recorder] input demo skipped: {exc!r}", flush=True)
+
+    async def _hold_on_result(self, page, ms: int) -> None:
+        """Bring the top (where inline results usually render) into view and pause,
+        so freshly revealed content is clearly visible before the page tour."""
+        try:
+            await page.evaluate(
+                "() => { const el = document.querySelector('[data-dm-scroll]');"
+                " (el || window).scrollTo({ top: 0, behavior: 'smooth' }); }"
+            )
         except Exception:
-            return
-        span = max(0, info["total"] - info["cur"])
-        for i in range(steps):
-            y = info["cur"] + span * (i + 1) / steps
-            try:
-                if info["has"]:
-                    await page.evaluate(
-                        "(y) => { const el = document.querySelector('[data-dm-scroll]');"
-                        " if (el) el.scrollTo({ top: y, behavior: 'smooth' }); }", y
-                    )
-                else:
-                    await page.evaluate("(y) => window.scrollTo({ top: y, behavior: 'smooth' })", y)
-            except Exception:
-                pass
-            await page.wait_for_timeout(1200)
+            pass
+        await page.wait_for_timeout(ms)
 
     async def _scroll_full(self, page) -> None:
         """Page through the entire scrollable content top→bottom, holding at each

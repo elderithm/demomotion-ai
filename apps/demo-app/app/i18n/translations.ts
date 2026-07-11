@@ -30,6 +30,7 @@ export type Dictionary = {
   ideaAriaLabel: string;
   ideaExample: string;
   createPlan: string;
+  generating: string;
   plan: {
     positioningLabel: string;
     positioning: string;
@@ -84,6 +85,7 @@ export const translations: Record<Locale, Dictionary> = {
     ideaAriaLabel: 'Startup idea',
     ideaExample: 'Launch a lightweight AI demo video generator for indie hackers',
     createPlan: 'Create plan',
+    generating: 'Generating your launch plan…',
     plan: {
       positioningLabel: 'Positioning',
       positioning: 'AI-generated demo videos for builders who hate editing.',
@@ -152,6 +154,7 @@ export const translations: Record<Locale, Dictionary> = {
     ideaAriaLabel: 'スタートアップのアイデア',
     ideaExample: '個人開発者向けの軽量な AI デモ動画ジェネレーターをローンチする',
     createPlan: '計画を作成',
+    generating: 'ローンチ計画を生成しています…',
     plan: {
       positioningLabel: 'ポジショニング',
       positioning: '編集が苦手な開発者のための、AI 生成デモ動画。',
