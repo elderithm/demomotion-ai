@@ -14,6 +14,9 @@ on:
       goal:
         description: What the demo should show
         default: Explain this site for a first-time visitor, focusing on the 3 or 4 most important points.
+  # Catch pipeline/keyless-auth regressions weekly without per-PR cost.
+  schedule:
+    - cron: "0 3 * * 1"
 
 permissions:
   contents: read
@@ -21,6 +24,8 @@ permissions:
 
 jobs:
   verify:
+    # Costs GCP (Gemini/TTS) and hits an external site, so keep it to this repo.
+    if: github.repository == 'elderithm/demomotion-ai'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -39,8 +44,9 @@ jobs:
         uses: ./
         with:
           image: demomotion-api:ci
-          url: ${{ inputs.url }}
-          goal: ${{ inputs.goal }}
+          # inputs are only set on manual runs; fall back for scheduled runs.
+          url: ${{ inputs.url || 'https://conference.findy-code.io/' }}
+          goal: ${{ inputs.goal || 'Explain this site for a first-time visitor, focusing on the 3 or 4 most important points.' }}
           language: ja-JP
           ai_provider: vertex
           tts_provider: google
