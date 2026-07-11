@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright/python:v1.58.0-noble
+FROM mcr.microsoft.com/playwright/python:v1.61.0-noble
 WORKDIR /app
 # ffmpeg burns in subtitles; fonts-noto-cjk gives libass Japanese glyphs.
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg fonts-noto-cjk && rm -rf /var/lib/apt/lists/*
