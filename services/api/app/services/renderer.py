@@ -21,19 +21,32 @@ _SUBTITLE_STYLE = (
 
 
 class VideoRenderer:
-    def render(self, raw_video: Path, audio: Path, subtitle_vtt: Path, output_path: Path) -> Path:
+    def render(
+        self, raw_video: Path, audio: Path, subtitle_vtt: Path, output_path: Path,
+        trim_start: float = 0.0,
+    ) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # The recording and the narration are independent lengths. Make the output
-        # run for the longer of the two so the narration is never cut off: hold
-        # (freeze) the last video frame while the voice-over finishes, and let the
-        # audio simply end (trailing silence) when the recording is the longer one.
         video_dur = _duration(raw_video)
         audio_dur = _duration(audio)
-        target = max(video_dur, audio_dur) + 0.3
-        video_pad = max(0.0, target - video_dur)
 
-        pad = f"[0:v]tpad=stop_mode=clone:stop_duration={video_pad:.2f}"
+        # Drop the blank load/hydration lead-in at the start of the recording (plus
+        # a small buffer for paint lag after the DOM fills), but never trim so much
+        # that little content is left. Narration and subtitles are both 0-based, so
+        # dropping the video's blank head lines the content up with the voice-over.
+        trim = max(0.0, min(trim_start + 0.4, video_dur - 3.0))
+        content_dur = max(0.0, video_dur - trim)
+
+        # Make the output run for the longer of content vs narration so the
+        # narration is never cut off: hold (freeze) the last video frame while the
+        # voice-over finishes.
+        target = max(content_dur, audio_dur) + 0.3
+        video_pad = max(0.0, target - content_dur)
+
+        # Frame-accurate trim (unlike -ss keyframe seeking, this leaves no sliver of
+        # the blank intro), then hold the last frame to reach the target length.
+        head = f"trim=start={trim:.2f},setpts=PTS-STARTPTS," if trim > 0 else ""
+        pad = f"[0:v]{head}tpad=stop_mode=clone:stop_duration={video_pad:.2f}"
 
         def command(burn_subtitles: bool) -> list[str]:
             vfilter = pad

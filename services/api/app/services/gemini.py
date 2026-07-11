@@ -9,7 +9,7 @@ class GeminiPlanner:
     goal, and text extracted from the page, using Vertex AI Gemini via the
     google-genai SDK."""
 
-    def generate(self, request: VideoJobCreate, page_context: str) -> dict:
+    def generate(self, request: VideoJobCreate, page_context: str, clickables: list[str] | None = None) -> dict:
         settings = get_settings()
         from google import genai
         from google.genai import types
@@ -22,6 +22,8 @@ class GeminiPlanner:
 
         language_name = "Japanese" if request.language.startswith("ja") else "English"
         context = (page_context or "").strip()[:4000] or "(no readable page text was extracted)"
+        labels = [c for c in (clickables or []) if c][:25]
+        clickable_block = "\n".join(f"- {c}" for c in labels) or "(none detected)"
 
         prompt = f"""You are scripting a short, narrated product demo video.
 
@@ -29,13 +31,16 @@ Target site URL: {request.url}
 What the demo should show (goal): {request.goal}
 Narration language: {language_name}
 
-Text extracted from the page:
+Text extracted from the rendered page:
 \"\"\"
 {context}
 \"\"\"
 
-Write a plan grounded in the actual page text and the goal above. Return ONLY a
-JSON object with these keys:
+Clickable elements on the page (tabs / buttons / links), by their exact visible label:
+{clickable_block}
+
+Write a plan grounded in the actual page content and the goal above. Return ONLY
+a JSON object with these keys:
 - "title": a short demo title, at most 8 words.
 - "steps": an array of 4-6 short PLAIN STRINGS (not objects) describing, in
   order, what the viewer sees on screen.
@@ -43,11 +48,14 @@ JSON object with these keys:
   sentences. It should introduce the product, follow the stated goal, and refer
   to what is actually on the page. Plain text only, no markdown, and do not
   mention that it was AI-generated.
-- "actions": an array of 0 to 3 strings, each the EXACT visible text of a button
-  or link on the page to click, in order, to demonstrate the goal. Use only real
-  labels you can see in the page text, prefer primary calls-to-action and
-  in-site navigation, and never include anything that logs out, deletes data,
-  submits a form, or leaves the site."""
+- "actions": choose 2 to 4 items from the "Clickable elements" list to click
+  through, in order, giving a guided tour of DIFFERENT sections/tabs so the viewer
+  sees content beyond the first screen. Spread them across the list — do NOT pick
+  only the first item, which is usually already open by default. Copy each label
+  EXACTLY as written above. If the page has section tabs (e.g. overview, schedule,
+  rules, FAQ), pick a variety of them. Never include anything that logs out,
+  deletes data, submits a form, or leaves the site. Return an empty array only if
+  there are genuinely no useful things to click."""
 
         response = client.models.generate_content(
             model=settings.gemini_model,
@@ -89,5 +97,5 @@ JSON object with these keys:
             "title": title,
             "steps": steps or [title],
             "narration": narration,
-            "actions": actions[:3],
+            "actions": actions[:4],
         }
