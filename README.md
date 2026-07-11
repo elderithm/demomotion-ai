@@ -210,14 +210,47 @@ it up automatically (`DEMOMOTION_AUTH_STATE`) and ignores it when absent.
 Automated login (login-form detection, 2FA, encrypted credential storage) is out
 of scope for the OSS engine and belongs to a hosted edition.
 
-## Continuous integration
+## Use it in your own CI
 
-`.github/workflows/generate-demo.yml` is a runnable sample that starts the stack
-with the credential-free `demo` providers, generates a video, and uploads the
-MP4 as a build artifact. Trigger it from the Actions tab (**Run workflow**) with
-a URL and goal, or copy it into your own repo's CI to render a fresh demo on each
-release. Point it at `AI_PROVIDER=vertex` + Google Cloud credentials for
-production-quality output.
+Other repos generate a video with the reusable GitHub Action — no need to clone
+this repo:
+
+```yaml
+# .github/workflows/demo.yml in your repo
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: elderithm/demomotion-ai@v1
+        with:
+          url: https://your-app.example.com
+          goal: Explain the app for a first-time visitor, focusing on the key features.
+          # For tailored narration (Gemini), pass Google Cloud credentials:
+          # ai_provider: vertex
+          # tts_provider: google
+          # gcp_project_id: your-project-id
+          # google_credentials_json: ${{ secrets.GCP_SA_KEY }}
+      - uses: actions/upload-artifact@v4
+        with: { name: demo-video, path: demo.mp4 }
+```
+
+The action pulls the published API image (`ghcr.io/elderithm/demomotion-ai-api`),
+runs it on the runner, generates the video, and writes it to `demo.mp4`. A
+copy-paste example lives in [`examples/github-actions/demo.yml`](examples/github-actions/demo.yml).
+
+Notes:
+- The default `demo` providers need no credentials but produce generic narration.
+  For a demo tailored to your site, use `ai_provider: vertex` with Google Cloud
+  credentials passed as a secret.
+- The `url` must be reachable from the GitHub runner (a public URL, a preview
+  deploy, or a service you start on the runner). For login-gated pages, capture a
+  session locally with `make auth-capture` and pass it via `auth_state_json`.
+- Publishing: `.github/workflows/publish-image.yml` pushes the API image to GHCR
+  on version tags. After the first publish, set the package to **Public** so
+  consumers can pull it.
+
+`.github/workflows/generate-demo.yml` is a self-contained variant that runs the
+full stack from a checkout of this repo (handy for trying it here).
 
 ## Docker notes
 
