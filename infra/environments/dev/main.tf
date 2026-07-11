@@ -120,6 +120,23 @@ resource "google_service_account_iam_member" "github_ci_impersonation" {
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repository}"
 }
+
+# serviceusage.services.use is required to set a billing/quota project on API
+# calls (e.g. Text-to-Speech, and the impersonation call itself) — needed when
+# the credentials don't natively carry one, as with federated/impersonated CI
+# identities. Grant it to both the federated principal (which performs the
+# impersonation) and the runtime SA (which then calls the APIs).
+resource "google_project_iam_member" "ci_principal_serviceusage" {
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repository}"
+}
+
+resource "google_project_iam_member" "runtime_serviceusage" {
+  project = var.project_id
+  role    = "roles/serviceusage.serviceUsageConsumer"
+  member  = "serviceAccount:${google_service_account.runtime.email}"
+}
 # ------------------------------------------------------------------------------
 
 resource "google_cloud_run_v2_service" "api" {
