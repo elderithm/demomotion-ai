@@ -49,6 +49,66 @@ export default function DemoApp() {
           </div>
         </div>
       </section>
+
+      <section className="section features">
+        <h2 className="section-title">{t.features.heading}</h2>
+        <div className="grid-3">
+          {t.features.items.map((f) => (
+            <div className="feature" key={f.title}>
+              <h3>{f.title}</h3>
+              <p>{f.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="section how">
+        <h2 className="section-title">{t.how.heading}</h2>
+        <div className="grid-3">
+          {t.how.steps.map((s) => (
+            <div className="step" key={s.title}>
+              <h3>{s.title}</h3>
+              <p>{s.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="section pricing">
+        <h2 className="section-title">{t.pricing.heading}</h2>
+        <div className="grid-2">
+          {t.pricing.plans.map((plan) => (
+            <div className="tier" key={plan.name}>
+              <h3>{plan.name}</h3>
+              <div className="price">{plan.price}</div>
+              <div className="price-note">{plan.note}</div>
+              <ul>
+                {plan.features.map((feat) => (
+                  <li key={feat}>{feat}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="section faq">
+        <h2 className="section-title">{t.faq.heading}</h2>
+        <div className="faq-list">
+          {t.faq.items.map((item) => (
+            <div className="qa" key={item.q}>
+              <h3>{item.q}</h3>
+              <p>{item.a}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="section cta">
+        <h2>{t.cta.heading}</h2>
+        <p>{t.cta.body}</p>
+        <button className="btn" onClick={() => setCreated(true)}>{t.cta.button}</button>
+      </section>
     </main>
   );
 }
