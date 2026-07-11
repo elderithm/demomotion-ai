@@ -58,7 +58,14 @@ class BrowserRecorder:
     def _viewport(self, aspect_ratio: str) -> dict:
         return {"width": 1280, "height": 720} if aspect_ratio == "16:9" else {"width": 720, "height": 1280}
 
-    async def _context(self, browser, viewport: dict, record_dir: Path | None = None):
+    @staticmethod
+    def _locale(language: str) -> str:
+        # Match the browser locale to the narration language so sites that render
+        # per navigator.language show the SAME language we narrate (and so the
+        # labels probe extracts for the planner match the DOM we later record).
+        return language if language and "-" in language else (language or "en-US")
+
+    async def _context(self, browser, viewport: dict, language: str, record_dir: Path | None = None):
         # Derive the UA from the bundled Chromium and drop "Headless": a real,
         # current version keeps bot filters happy and stops version-gated sites
         # (e.g. Notion) from redirecting us to an "unsupported browser" page.
@@ -68,7 +75,7 @@ class BrowserRecorder:
         kwargs = {
             "viewport": viewport,
             "user_agent": default_ua.replace("HeadlessChrome", "Chrome"),
-            "locale": "ja-JP",
+            "locale": self._locale(language),
         }
         # Reuse a captured login session (Playwright storageState) so authenticated
         # pages can be recorded. Ignored if the file is absent.
@@ -80,16 +87,21 @@ class BrowserRecorder:
             kwargs["record_video_size"] = viewport
         return await browser.new_context(**kwargs)
 
-    async def probe(self, url: str, aspect_ratio: str) -> tuple[str, list[str]]:
+    async def probe(self, url: str, aspect_ratio: str, language: str = "en-US") -> tuple[str, list[str]]:
         """Render the page (no recording) and return its visible text plus the
         labels of clickable elements, so the planner can ground the narration and
         pick real on-page tabs/buttons to click."""
         viewport = self._viewport(aspect_ratio)
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
-            context = await self._context(browser, viewport)
+            context = await self._context(browser, viewport, language)
             page = await context.new_page()
             await _prepare(page, url)
+            # Let client-side reconciliation settle (e.g. apps that switch language
+            # from navigator.language after mount) so the labels we extract match
+            # the DOM the recording will later interact with. Mirrors record()'s
+            # settle wait below.
+            await page.wait_for_timeout(1500)
             try:
                 text = await page.evaluate(
                     "() => document.body ? document.body.innerText.trim().slice(0, 4000) : ''"
@@ -105,14 +117,14 @@ class BrowserRecorder:
             return text, clickables
 
     async def record(
-        self, url: str, scenario: DemoScenario, output_dir: Path, aspect_ratio: str
+        self, url: str, scenario: DemoScenario, output_dir: Path, aspect_ratio: str, language: str = "en-US"
     ) -> tuple[Path, float]:
         output_dir.mkdir(parents=True, exist_ok=True)
         viewport = self._viewport(aspect_ratio)
         video_dir = output_dir / "raw"
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
-            context = await self._context(browser, viewport, record_dir=video_dir)
+            context = await self._context(browser, viewport, language, record_dir=video_dir)
             page = await context.new_page()
             lead_in = await _prepare(page, url)
             await page.wait_for_timeout(1500)

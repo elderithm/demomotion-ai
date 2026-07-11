@@ -33,7 +33,7 @@ class VideoPipeline:
             # actually sees (client-rendered SPAs are empty in raw HTML) and can
             # choose real on-page tabs/buttons to click.
             page_text, clickables = await self.recorder.probe(
-                str(job.input.url), job.input.aspect_ratio
+                str(job.input.url), job.input.aspect_ratio, job.input.language
             )
             scenario = await self.planner.create_scenario(job.input, page_text, clickables)
             job.scenario = scenario
@@ -48,7 +48,9 @@ class VideoPipeline:
             job.status = VideoJobStatus.recording
             job.add_event("Opening Chromium and recording the product workflow")
             store.save(job)
-            raw_video, lead_in = await self.recorder.record(str(job.input.url), scenario, base, job.input.aspect_ratio)
+            raw_video, lead_in = await self.recorder.record(
+                str(job.input.url), scenario, base, job.input.aspect_ratio, job.input.language
+            )
             job.add_event("Screen recording completed")
             store.save(job)
 

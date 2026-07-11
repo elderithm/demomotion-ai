@@ -7,6 +7,16 @@ export const LOCALES: { value: Locale; label: string }[] = [
 
 export const DEFAULT_LOCALE: Locale = 'en';
 
+// Resolve a locale from an HTTP Accept-Language header, so the server can render
+// the right language on the FIRST paint (no client hydration needed). The demo
+// recorder sets the browser locale to match the narration language, which the
+// browser sends as Accept-Language.
+export function localeFromAcceptLanguage(header: string | null | undefined): Locale {
+  const first = (header || '').split(',')[0]?.trim().toLowerCase() ?? '';
+  if (first.startsWith('ja')) return 'ja';
+  return DEFAULT_LOCALE;
+}
+
 export type Dictionary = {
   htmlLang: string;
   ui: {
