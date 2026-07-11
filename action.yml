@@ -36,7 +36,10 @@ inputs:
     description: Google Cloud project id (for vertex / gcs).
     default: ""
   google_credentials_json:
-    description: Google Cloud service-account key JSON (pass via a secret) for vertex / gcs.
+    description: >-
+      DEPRECATED / discouraged. A long-lived Google Cloud service-account key
+      JSON. Prefer keyless Workload Identity Federation: run
+      google-github-actions/auth before this action and leave this empty.
     default: ""
   auth_state_json:
     description: Playwright storageState JSON (pass via a secret) to record a login-gated site.
@@ -71,7 +74,16 @@ runs:
         args=(-d --name demomotion-api --network host
           -e "AI_PROVIDER=$DM_AI" -e "TTS_PROVIDER=$DM_TTS" -e "STORAGE_PROVIDER=$DM_STORE")
 
-        if [ -n "$DM_GCP_CREDS" ]; then
+        if [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]; then
+          # Keyless: a prior `google-github-actions/auth` (Workload Identity
+          # Federation) step wrote short-lived Application Default Credentials
+          # under RUNNER_TEMP. Mount them so the container authenticates without a
+          # long-lived key. No secrets stored anywhere.
+          args+=(-v "$RUNNER_TEMP:$RUNNER_TEMP:ro"
+            -e "GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
+            -e "GCP_PROJECT_ID=$DM_GCP_PROJECT")
+        elif [ -n "$DM_GCP_CREDS" ]; then
+          # Fallback: long-lived service-account key (discouraged).
           printf '%s' "$DM_GCP_CREDS" > "$RUNNER_TEMP/gcp-key.json"
           args+=(-v "$RUNNER_TEMP/gcp-key.json:/creds/key.json:ro"
             -e "GOOGLE_APPLICATION_CREDENTIALS=/creds/key.json"

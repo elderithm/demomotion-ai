@@ -8,24 +8,35 @@ on:
   # release:
   #   types: [published]
 
+# Required for keyless Google Cloud auth (Workload Identity Federation).
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   demo:
     runs-on: ubuntu-latest
     steps:
       # (Optional) start/deploy your app so its URL is reachable from the runner.
 
+      # Keyless Google Cloud auth — NO service-account key. One-time GCP setup:
+      # a Workload Identity Pool + Provider that trusts your GitHub repo.
+      # https://github.com/google-github-actions/auth#preferred-direct-workload-identity-federation
+      - uses: google-github-actions/auth@v2
+        with:
+          project_id: your-project-id
+          workload_identity_provider: projects/123456789/locations/global/workloadIdentityPools/github/providers/github
+
       - name: Generate the demo video
         uses: elderithm/demomotion-ai@v1
         with:
           url: https://your-app.example.com
           goal: Explain the app for a first-time visitor, focusing on the 3-4 key features.
-          # Quick + credential-free but generic narration: ai_provider: demo (default).
-          # Tailored narration with Gemini (recommended) — pass Google Cloud creds:
-          # ai_provider: vertex
-          # tts_provider: google
-          # storage_provider: gcs
-          # gcp_project_id: your-project-id
-          # google_credentials_json: ${{ secrets.GCP_SA_KEY }}
+          # Tailored narration with Gemini (uses the keyless auth above):
+          ai_provider: vertex
+          tts_provider: google
+          storage_provider: gcs
+          gcp_project_id: your-project-id
           # Record a login-gated page (capture with `make auth-capture` locally):
           # auth_state_json: ${{ secrets.DEMOMOTION_AUTH_STATE }}
 
@@ -33,3 +44,6 @@ jobs:
         with:
           name: demo-video
           path: demo.mp4
+
+# Prefer no Google Cloud at all? Drop the auth step and the vertex/google/gcs
+# inputs — the default `demo` providers run credential-free (generic narration).

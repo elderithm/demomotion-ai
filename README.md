@@ -225,11 +225,6 @@ jobs:
         with:
           url: https://your-app.example.com
           goal: Explain the app for a first-time visitor, focusing on the key features.
-          # For tailored narration (Gemini), pass Google Cloud credentials:
-          # ai_provider: vertex
-          # tts_provider: google
-          # gcp_project_id: your-project-id
-          # google_credentials_json: ${{ secrets.GCP_SA_KEY }}
       - uses: actions/upload-artifact@v4
         with: { name: demo-video, path: demo.mp4 }
 ```
@@ -238,10 +233,43 @@ The action pulls the published API image (`ghcr.io/elderithm/demomotion-ai-api`)
 runs it on the runner, generates the video, and writes it to `demo.mp4`. A
 copy-paste example lives in [`examples/github-actions/demo.yml`](examples/github-actions/demo.yml).
 
+### Tailored narration with Gemini — keyless (recommended)
+
+For narration tailored to your site you need Google Cloud. **Do not create a
+service-account key.** Use keyless [Workload Identity Federation](https://github.com/google-github-actions/auth#preferred-direct-workload-identity-federation):
+the runner's short-lived OIDC token is exchanged for temporary credentials, so
+nothing long-lived is ever stored.
+
+```yaml
+permissions:
+  contents: read
+  id-token: write            # lets the runner mint an OIDC token
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/auth@v2   # keyless — no key file
+        with:
+          project_id: your-project-id
+          workload_identity_provider: projects/123/locations/global/workloadIdentityPools/github/providers/github
+      - uses: elderithm/demomotion-ai@v1
+        with:
+          url: https://your-app.example.com
+          goal: Explain the app for a first-time visitor, focusing on the key features.
+          ai_provider: vertex
+          tts_provider: google
+          storage_provider: gcs
+          gcp_project_id: your-project-id
+      - uses: actions/upload-artifact@v4
+        with: { name: demo-video, path: demo.mp4 }
+```
+
+The action auto-detects the credentials the `auth` step provides and mounts them
+into the container. A long-lived key (`google_credentials_json`) is still
+accepted as a fallback, but discouraged.
+
 Notes:
 - The default `demo` providers need no credentials but produce generic narration.
-  For a demo tailored to your site, use `ai_provider: vertex` with Google Cloud
-  credentials passed as a secret.
 - The `url` must be reachable from the GitHub runner (a public URL, a preview
   deploy, or a service you start on the runner). For login-gated pages, capture a
   session locally with `make auth-capture` and pass it via `auth_state_json`.
