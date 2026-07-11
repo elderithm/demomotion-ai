@@ -18,6 +18,46 @@ _TAG_SCROLLER = """() => {
   return !!els[0];
 }"""
 
+# Headless Chromium does not paint a mouse pointer, so real clicks are invisible
+# in the recording — the result just appears and the viewer never sees the button
+# get pressed. Inject a synthetic cursor that follows mouse moves and can pulse on
+# click, so interactions are visible on screen. Runs at document start on every
+# navigation (via add_init_script).
+_CURSOR = """() => {
+  if (window.__dmCursorReady) return;
+  window.__dmCursorReady = true;
+  const ensure = () => {
+    if (document.getElementById('__dm_cursor') || !document.body) return;
+    const c = document.createElement('div');
+    c.id = '__dm_cursor';
+    Object.assign(c.style, {
+      position: 'fixed', left: '0px', top: '0px', width: '20px', height: '20px',
+      borderRadius: '50%', background: 'rgba(20,24,40,0.35)',
+      border: '2px solid rgba(255,255,255,0.95)',
+      boxShadow: '0 2px 10px rgba(0,0,0,0.45)', zIndex: '2147483647',
+      pointerEvents: 'none', transform: 'translate(-50%,-50%)',
+      transition: 'transform .08s ease-out',
+    });
+    (document.body || document.documentElement).appendChild(c);
+  };
+  document.addEventListener('DOMContentLoaded', ensure);
+  ensure();
+  document.addEventListener('mousemove', (e) => {
+    const c = document.getElementById('__dm_cursor');
+    if (c) { c.style.left = e.clientX + 'px'; c.style.top = e.clientY + 'px'; }
+  }, true);
+  window.__dmClickPulse = () => {
+    const c = document.getElementById('__dm_cursor');
+    if (!c) return;
+    c.animate(
+      [{ transform: 'translate(-50%,-50%) scale(1)', background: 'rgba(102,88,255,0.5)' },
+       { transform: 'translate(-50%,-50%) scale(0.55)', background: 'rgba(102,88,255,0.8)' },
+       { transform: 'translate(-50%,-50%) scale(1)', background: 'rgba(20,24,40,0.35)' }],
+      { duration: 320, easing: 'ease-out' }
+    );
+  };
+}"""
+
 # Visible labels of clickable elements (tabs, buttons, links) for the planner.
 _CLICKABLES = """() => {
   const out = [], seen = new Set();
@@ -58,7 +98,14 @@ class BrowserRecorder:
     def _viewport(self, aspect_ratio: str) -> dict:
         return {"width": 1280, "height": 720} if aspect_ratio == "16:9" else {"width": 720, "height": 1280}
 
-    async def _context(self, browser, viewport: dict, record_dir: Path | None = None):
+    @staticmethod
+    def _locale(language: str) -> str:
+        # Match the browser locale to the narration language so sites that render
+        # per navigator.language show the SAME language we narrate (and so the
+        # labels probe extracts for the planner match the DOM we later record).
+        return language if language and "-" in language else (language or "en-US")
+
+    async def _context(self, browser, viewport: dict, language: str, record_dir: Path | None = None):
         # Derive the UA from the bundled Chromium and drop "Headless": a real,
         # current version keeps bot filters happy and stops version-gated sites
         # (e.g. Notion) from redirecting us to an "unsupported browser" page.
@@ -68,7 +115,7 @@ class BrowserRecorder:
         kwargs = {
             "viewport": viewport,
             "user_agent": default_ua.replace("HeadlessChrome", "Chrome"),
-            "locale": "ja-JP",
+            "locale": self._locale(language),
         }
         # Reuse a captured login session (Playwright storageState) so authenticated
         # pages can be recorded. Ignored if the file is absent.
@@ -80,16 +127,21 @@ class BrowserRecorder:
             kwargs["record_video_size"] = viewport
         return await browser.new_context(**kwargs)
 
-    async def probe(self, url: str, aspect_ratio: str) -> tuple[str, list[str]]:
+    async def probe(self, url: str, aspect_ratio: str, language: str = "en-US") -> tuple[str, list[str]]:
         """Render the page (no recording) and return its visible text plus the
         labels of clickable elements, so the planner can ground the narration and
         pick real on-page tabs/buttons to click."""
         viewport = self._viewport(aspect_ratio)
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
-            context = await self._context(browser, viewport)
+            context = await self._context(browser, viewport, language)
             page = await context.new_page()
             await _prepare(page, url)
+            # Let client-side reconciliation settle (e.g. apps that switch language
+            # from navigator.language after mount) so the labels we extract match
+            # the DOM the recording will later interact with. Mirrors record()'s
+            # settle wait below.
+            await page.wait_for_timeout(1500)
             try:
                 text = await page.evaluate(
                     "() => document.body ? document.body.innerText.trim().slice(0, 4000) : ''"
@@ -105,14 +157,18 @@ class BrowserRecorder:
             return text, clickables
 
     async def record(
-        self, url: str, scenario: DemoScenario, output_dir: Path, aspect_ratio: str
+        self, url: str, scenario: DemoScenario, output_dir: Path, aspect_ratio: str, language: str = "en-US"
     ) -> tuple[Path, float]:
         output_dir.mkdir(parents=True, exist_ok=True)
         viewport = self._viewport(aspect_ratio)
         video_dir = output_dir / "raw"
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True, args=["--no-sandbox"])
-            context = await self._context(browser, viewport, record_dir=video_dir)
+            context = await self._context(browser, viewport, language, record_dir=video_dir)
+            # Paint a visible cursor so clicks read as real interactions on screen.
+            # add_init_script injects source verbatim (it does not call it like
+            # evaluate does), so wrap the function as an IIFE to run it.
+            await context.add_init_script(f"({_CURSOR})()")
             page = await context.new_page()
             lead_in = await _prepare(page, url)
             await page.wait_for_timeout(1500)
@@ -121,8 +177,15 @@ class BrowserRecorder:
             except Exception:
                 pass
 
+            # Show a real input→submit workflow: type into the page's primary text
+            # field before clicking, so the demo reads as a user driving the product.
+            await self._demo_type(page)
+
             # Run the planned interactions (Gemini-chosen tabs/buttons, or the demo
-            # app's data-testid steps), scrolling through the result of each click.
+            # app's data-testid steps). Hold on the result afterwards rather than
+            # scrolling away immediately, so a revealed result is clearly visible.
+            planned = [s.get("text") or s.get("selector") for s in scenario.selectors]
+            print(f"[recorder] planned actions: {planned}", flush=True)
             clicked = False
             for step in scenario.selectors:
                 action = step.get("action")
@@ -131,7 +194,7 @@ class BrowserRecorder:
                     if action == "click_text" and step.get("text"):
                         await self._click_by_text(page, url, step["text"])
                         clicked = True
-                        await self._scroll_through(page, steps=3)
+                        print(f"[recorder] clicked: {step['text']!r}", flush=True)
                     elif action == "click" and selector:
                         await page.locator(selector).first.click(timeout=4000)
                         await page.wait_for_timeout(900)
@@ -141,14 +204,22 @@ class BrowserRecorder:
                     elif action == "wait" and selector:
                         await page.locator(selector).first.wait_for(timeout=4000)
                         await page.wait_for_timeout(1500)
-                except Exception:
+                except Exception as exc:
                     # Best-effort: a planned target may not exist on an arbitrary
                     # site. Skip it and keep recording rather than failing the job.
+                    print(f"[recorder] action skipped ({action} {step.get('text') or selector!r}): {exc!r}", flush=True)
                     continue
 
-            # Walk through the (remaining) content so the video isn't a static frame.
-            await self._scroll_through(page, steps=3 if clicked else 6)
-            await self._scroll_top(page)
+            # If a click just revealed content (a launch plan, an expanded panel),
+            # bring the top into view and hold so the viewer registers the result
+            # before the page tour begins.
+            if clicked:
+                await self._hold_on_result(page, 2500)
+
+            # Deterministically page through the ENTIRE page top→bottom so the
+            # recording always demonstrates scrolling — regardless of whether
+            # clicks left us near the top or bottom.
+            await self._scroll_full(page)
             await page.wait_for_timeout(1500)
 
             video = page.video
@@ -158,39 +229,106 @@ class BrowserRecorder:
                 raise RuntimeError("Playwright did not produce a video")
             return Path(await video.path()), lead_in
 
-    async def _scroll_through(self, page, steps: int) -> None:
+    async def _demo_type(self, page) -> None:
+        """If the page has a single prominent text field, animate the cursor to it
+        and re-type its content, so the recording shows a real input→submit flow.
+        Conservative on purpose: skips multi-field forms and sensitive inputs so it
+        stays safe on arbitrary sites."""
         try:
-            info = await page.evaluate("""() => {
-              const el = document.querySelector('[data-dm-scroll]');
-              return {
-                total: el ? el.scrollHeight : document.documentElement.scrollHeight,
-                cur: el ? el.scrollTop : window.scrollY,
-                has: !!el,
-              };
-            }""")
-        except Exception:
-            return
-        span = max(0, info["total"] - info["cur"])
-        for i in range(steps):
-            y = info["cur"] + span * (i + 1) / steps
-            try:
-                if info["has"]:
-                    await page.evaluate(
-                        "(y) => { const el = document.querySelector('[data-dm-scroll]');"
-                        " if (el) el.scrollTo({ top: y, behavior: 'smooth' }); }", y
-                    )
-                else:
-                    await page.evaluate("(y) => window.scrollTo({ top: y, behavior: 'smooth' })", y)
-            except Exception:
-                pass
-            await page.wait_for_timeout(1200)
+            fields = page.locator(
+                "textarea, input[type=text], input[type=search], input:not([type])"
+            )
+            count = await fields.count()
+            # 0 → nothing to type; >3 → likely a login/checkout form, leave it alone.
+            if count == 0 or count > 3:
+                return
+            target = None
+            box = None
+            best_w = 0.0
+            for i in range(min(count, 5)):
+                el = fields.nth(i)
+                if not await el.is_visible():
+                    continue
+                b = await el.bounding_box()
+                # Only a wide field in the upper part of the page (a hero input).
+                if not b or b["y"] > 520 or b["width"] < 220:
+                    continue
+                if b["width"] > best_w:
+                    best_w, target, box = b["width"], el, b
+            if target is None or box is None:
+                return
+            value = (await target.input_value()) or ""
+            if not value.strip():
+                return
+            cx = box["x"] + box["width"] / 2
+            cy = box["y"] + box["height"] / 2
+            await page.mouse.move(cx, cy, steps=20)
+            await page.wait_for_timeout(300)
+            await target.click(timeout=3000)
+            await page.wait_for_timeout(250)
+            await target.fill("")
+            await page.wait_for_timeout(250)
+            await target.type(value, delay=35)
+            await page.wait_for_timeout(600)
+            print("[recorder] typed into primary input", flush=True)
+        except Exception as exc:
+            print(f"[recorder] input demo skipped: {exc!r}", flush=True)
 
-    async def _scroll_top(self, page) -> None:
+    async def _hold_on_result(self, page, ms: int) -> None:
+        """Bring the top (where inline results usually render) into view and pause,
+        so freshly revealed content is clearly visible before the page tour."""
         try:
             await page.evaluate(
                 "() => { const el = document.querySelector('[data-dm-scroll]');"
                 " (el || window).scrollTo({ top: 0, behavior: 'smooth' }); }"
             )
+        except Exception:
+            pass
+        await page.wait_for_timeout(ms)
+
+    async def _scroll_full(self, page) -> None:
+        """Page through the entire scrollable content top→bottom, holding at each
+        stop, then return to the top. Viewport-based paging (not a fixed step
+        count) guarantees every section is shown on tall pages regardless of the
+        current scroll position."""
+        try:
+            m = await page.evaluate("""() => {
+              const el = document.querySelector('[data-dm-scroll]');
+              return {
+                total: el ? el.scrollHeight : document.documentElement.scrollHeight,
+                view: el ? el.clientHeight : window.innerHeight,
+                has: !!el,
+              };
+            }""")
+        except Exception:
+            return
+        total, view, has = m["total"], m["view"], m["has"]
+        await self._scroll_to(page, 0, has)
+        await page.wait_for_timeout(900)
+        step = max(1, int(view * 0.85))
+        y = 0
+        # Cap the stops so a very tall page can't run the recording forever.
+        for _ in range(12):
+            if y + view >= total:
+                break
+            y += step
+            await self._scroll_to(page, y, has)
+            await page.wait_for_timeout(1100)
+        # Hold at the bottom, then glide back to the top for the closing frame.
+        await self._scroll_to(page, max(0, total - view), has)
+        await page.wait_for_timeout(1100)
+        await self._scroll_to(page, 0, has)
+        await page.wait_for_timeout(1200)
+
+    async def _scroll_to(self, page, y: float, has: bool) -> None:
+        try:
+            if has:
+                await page.evaluate(
+                    "(y) => { const el = document.querySelector('[data-dm-scroll]');"
+                    " if (el) el.scrollTo({ top: y, behavior: 'smooth' }); }", y
+                )
+            else:
+                await page.evaluate("(y) => window.scrollTo({ top: y, behavior: 'smooth' })", y)
         except Exception:
             pass
 
@@ -213,7 +351,20 @@ class BrowserRecorder:
             if host and host != urlparse(base_url).netloc:
                 return
         await loc.scroll_into_view_if_needed(timeout=3000)
-        await page.wait_for_timeout(600)
+        await page.wait_for_timeout(500)
+        # Glide the visible cursor to the target and pulse it, so the recording
+        # shows the button being approached and pressed (not a result popping in).
+        try:
+            box = await loc.bounding_box()
+            if box:
+                cx = box["x"] + box["width"] / 2
+                cy = box["y"] + box["height"] / 2
+                await page.mouse.move(cx, cy, steps=25)
+                await page.wait_for_timeout(450)
+                await page.evaluate("() => window.__dmClickPulse && window.__dmClickPulse()")
+                await page.wait_for_timeout(200)
+        except Exception:
+            pass
         try:
             await loc.click(timeout=3000)
         except Exception:

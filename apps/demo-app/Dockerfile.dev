@@ -1,3 +1,7 @@
+# Production build of the sample landing page. It is served with `next start`
+# (not `next dev`) on purpose: the demo recorder drives the page with headless
+# Chromium and needs React to hydrate reliably so button clicks actually run —
+# the dev server's on-demand compilation does not hydrate in time when recorded.
 FROM node:20-bookworm-slim
 WORKDIR /workspace
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -5,5 +9,6 @@ COPY package.json pnpm-workspace.yaml ./
 COPY apps/demo-app/package.json apps/demo-app/package.json
 RUN corepack enable && corepack prepare pnpm@9.12.3 --activate && pnpm install --filter @demomotion/demo-app --frozen-lockfile=false
 COPY apps/demo-app ./apps/demo-app
+RUN pnpm --filter @demomotion/demo-app build
 EXPOSE 3001
-CMD ["pnpm", "--filter", "@demomotion/demo-app", "dev"]
+CMD ["pnpm", "--filter", "@demomotion/demo-app", "start"]

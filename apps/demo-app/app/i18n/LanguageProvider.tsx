@@ -23,26 +23,25 @@ function isLocale(value: string | null | undefined): value is Locale {
   return LOCALES.some((l) => l.value === value);
 }
 
-function detectInitialLocale(): Locale {
-  if (typeof window === 'undefined') return DEFAULT_LOCALE;
-  // A ?lang= query param wins so the demo can be recorded in a chosen language.
-  const param = new URLSearchParams(window.location.search).get('lang');
-  if (isLocale(param)) return param;
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  if (isLocale(stored)) return stored;
-  const browser = window.navigator.language.toLowerCase();
-  if (browser.startsWith('ja')) return 'ja';
-  return DEFAULT_LOCALE;
-}
-
-export function LanguageProvider({ children }: { children: React.ReactNode }) {
-  // Start from the default locale so the server and first client render match,
-  // then reconcile to the query/stored/browser preference after mount.
-  const [locale, setLocaleState] = useState<Locale>(DEFAULT_LOCALE);
+export function LanguageProvider({
+  children,
+  initialLocale = DEFAULT_LOCALE
+}: {
+  children: React.ReactNode;
+  initialLocale?: Locale;
+}) {
+  // Start from the server-resolved locale (Accept-Language) so the server and
+  // first client render match, then reconcile to an explicit ?lang / stored
+  // preference after mount for interactive use.
+  const [locale, setLocaleState] = useState<Locale>(initialLocale);
 
   useEffect(() => {
-    setLocaleState(detectInitialLocale());
-  }, []);
+    const param = new URLSearchParams(window.location.search).get('lang');
+    if (isLocale(param)) return setLocaleState(param);
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (isLocale(stored)) return setLocaleState(stored);
+    setLocaleState(initialLocale);
+  }, [initialLocale]);
 
   useEffect(() => {
     document.documentElement.lang = translations[locale].htmlLang;

@@ -81,12 +81,16 @@ runs:
 
         if [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && [ -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]; then
           # Keyless: a prior `google-github-actions/auth` (Workload Identity
-          # Federation) step wrote short-lived Application Default Credentials
-          # under RUNNER_TEMP. Mount them so the container authenticates without a
-          # long-lived key. No secrets stored anywhere.
-          args+=(-v "$RUNNER_TEMP:$RUNNER_TEMP:ro"
+          # Federation) step wrote short-lived Application Default Credentials.
+          # Mount the directory that actually holds them (it may be under
+          # GITHUB_WORKSPACE or RUNNER_TEMP) and pass the OIDC token endpoint so the
+          # ADC can mint a token from inside the container. No long-lived secret.
+          creds_dir=$(dirname "$GOOGLE_APPLICATION_CREDENTIALS")
+          args+=(-v "$creds_dir:$creds_dir:ro"
             -e "GOOGLE_APPLICATION_CREDENTIALS=$GOOGLE_APPLICATION_CREDENTIALS"
             -e "GCP_PROJECT_ID=$DM_GCP_PROJECT")
+          [ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] && args+=(-e "ACTIONS_ID_TOKEN_REQUEST_URL=$ACTIONS_ID_TOKEN_REQUEST_URL")
+          [ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ] && args+=(-e "ACTIONS_ID_TOKEN_REQUEST_TOKEN=$ACTIONS_ID_TOKEN_REQUEST_TOKEN")
         elif [ -n "$DM_GCP_CREDS" ]; then
           # Fallback: long-lived service-account key (discouraged).
           printf '%s' "$DM_GCP_CREDS" > "$RUNNER_TEMP/gcp-key.json"
@@ -130,4 +134,6 @@ runs:
         video_url=$(echo "$body" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("video_url") or "")')
         echo "video-url=$video_url" >> "$GITHUB_OUTPUT"
 
+        echo "----- api logs (tail) -----"
+        docker logs --tail 60 demomotion-api 2>&1 || true
         docker rm -f demomotion-api >/dev/null 2>&1 || true
