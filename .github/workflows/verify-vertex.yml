@@ -9,8 +9,8 @@ on:
   workflow_dispatch:
     inputs:
       url:
-        description: URL to record
-        default: https://conference.findy-code.io/
+        description: URL to record (defaults to the bundled demo-app)
+        default: http://localhost:3001
       goal:
         description: What the demo should show
         default: Explain this site for a first-time visitor, focusing on the 3 or 4 most important points.
@@ -31,6 +31,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Start the bundled demo-app
+        run: |
+          docker compose up -d --build demo-app
+          for i in $(seq 1 40); do curl -sf http://localhost:3001 >/dev/null && break || sleep 3; done
+
       - name: Build the API image
         run: docker build -f services/api/Dockerfile -t demomotion-api:ci .
 
@@ -46,8 +51,8 @@ jobs:
         with:
           image: demomotion-api:ci
           # inputs are only set on manual runs; fall back for scheduled runs.
-          url: ${{ inputs.url || 'https://conference.findy-code.io/' }}
-          goal: ${{ inputs.goal || 'Explain this site for a first-time visitor, focusing on the 3 or 4 most important points.' }}
+          url: ${{ inputs.url || 'http://localhost:3001' }}
+          goal: ${{ inputs.goal || 'Explain this product for a first-time visitor, focusing on the 3 or 4 most important points.' }}
           language: ja-JP
           ai_provider: vertex
           tts_provider: google
@@ -58,3 +63,7 @@ jobs:
         with:
           name: demo-video
           path: demo.mp4
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

@@ -49,9 +49,15 @@ class SpeechService:
         return language.split("-")[0].lower() or "en"
 
     async def _google_tts(self, text: str, language: str, output_path: Path) -> Path:
+        from google.api_core.client_options import ClientOptions
         from google.cloud import texttospeech
 
-        client = texttospeech.TextToSpeechClient()
+        # Text-to-Speech requires an explicit billing/quota project when the
+        # credentials don't carry one (e.g. Workload Identity Federation in CI),
+        # otherwise the call 403s and narration falls back to a placeholder tone.
+        project = get_settings().gcp_project_id
+        options = ClientOptions(quota_project_id=project) if project else None
+        client = texttospeech.TextToSpeechClient(client_options=options)
         synthesis_input = texttospeech.SynthesisInput(text=text)
         voice = texttospeech.VoiceSelectionParams(
             language_code=language,
