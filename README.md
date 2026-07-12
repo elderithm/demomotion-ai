@@ -359,42 +359,45 @@ Notes:
 `.github/workflows/generate-demo.yml` is a self-contained variant that runs the
 full stack from a checkout of this repo (handy for trying it here).
 
-## Use it as a Claude Code skill / plugin
+## Use it as a Claude Code plugin
 
-This repo ships a [Claude Code](https://claude.com/claude-code) skill so you can
-ask Claude to record a demo in plain language ("make a demo video of
-https://… showing …"). It wraps the same containerized pipeline — the public
-`ghcr.io/elderithm/demomotion-ai-api` image runs locally and writes an MP4.
+This repo is a [Claude Code](https://claude.com/claude-code) plugin marketplace,
+so you can record a demo from inside Claude Code. It wraps the same containerized
+pipeline — the public `ghcr.io/elderithm/demomotion-ai-api` image runs locally
+and writes an MP4.
 
-**Install as a plugin** — this repo is also a plugin marketplace:
+**Install:**
 
 ```
 /plugin marketplace add elderithm/demomotion-ai
 /plugin install demomotion@demomotion-ai
+/reload-plugins
 ```
 
-Then you get, in any project:
+Then, in any project, one command:
 
-- a typed command — **`/demomotion:demo <url> <goal>`** (the `<url> <goal>`
-  hint shows in the slash menu), and
-- the auto-invoked skill `demomotion:demo-video` (just ask in plain language).
+```
+/demomotion:demo-video <url> <goal>
+```
+
+The `<url> <goal>` hint shows in the slash menu. You can also just ask in plain
+language ("make a demo video of https://… showing …") and Claude runs it for you.
 
 Requires Docker (plus `curl` and `python3`). The default `demo` provider needs no
 credentials; for tailored Gemini narration, run `gcloud auth
-application-default login` and pass `--ai vertex --tts google --gcp-project <id>`.
+application-default login` and add `--ai vertex --tts google --gcp-project <id>`.
 
-**Or use it in-repo / run the script directly** — the skill is auto-discovered
-when you run Claude Code in this repo, and the script works standalone:
+**Run the script directly** (no Claude Code needed):
 
 ```bash
-plugins/demomotion/skills/demo-video/scripts/generate.sh \
+plugins/demomotion/scripts/generate.sh \
   --url https://your-app.example.com \
   --goal "Explain the app for a first-time visitor, focusing on the key features." \
   --output demo.mp4
 ```
 
 Plugin layout: [`plugins/demomotion/`](plugins/demomotion/) (manifest +
-`skills/demo-video/`); the marketplace manifest is
+`commands/demo-video.md` + `scripts/generate.sh`); the marketplace manifest is
 [`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json).
 
 ## Docker notes

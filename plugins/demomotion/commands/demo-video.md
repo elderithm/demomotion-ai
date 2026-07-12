@@ -16,7 +16,7 @@ If the URL or the goal is missing, ask the user for it before continuing.
 Then run this (Docker must be running):
 
 ```bash
-"${CLAUDE_PLUGIN_ROOT}/skills/demo-video/scripts/generate.sh" \
+"${CLAUDE_PLUGIN_ROOT}/scripts/generate.sh" \
   --url "<URL>" \
   --goal "<GOAL>" \
   --output demo.mp4
