@@ -19,6 +19,12 @@
 
 <br>
 
+**☁️ Want the hosted version? [Join the DemoMotion Cloud waiting list →](https://demomotion-cloud-prod.web.app)**
+
+[![Join the waiting list](https://img.shields.io/badge/DemoMotion_Cloud-Join_the_waiting_list-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)](https://demomotion-cloud-prod.web.app)
+
+<br>
+
 **🇺🇸 English narration**
 
 ![DemoMotion AI demo](demo.gif)
@@ -31,7 +37,7 @@
 
 **DemoMotion AI** turns a web app URL and a demo goal into a narrated product demo video.
 
-This repository is the open-source core, licensed under AGPL-3.0-or-later. A hosted commercial edition can be built separately as DemoMotion Cloud.
+This repository is the open-source core, licensed under AGPL-3.0-or-later. A hosted commercial edition, **DemoMotion Cloud**, is in the works — [join the waiting list](https://demomotion-cloud-prod.web.app) to get early access.
 
 ## What it does
 
