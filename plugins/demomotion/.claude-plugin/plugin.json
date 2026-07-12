@@ -1,0 +1,8 @@
+{
+  "name": "demomotion",
+  "description": "Generate narrated demo videos of web apps from a URL and a goal.",
+  "version": "1.0.0",
+  "author": { "name": "elderithm" },
+  "homepage": "https://github.com/elderithm/demomotion-ai",
+  "license": "AGPL-3.0-or-later"
+}

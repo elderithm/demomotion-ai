@@ -1,0 +1,11 @@
+{
+  "name": "demomotion-ai",
+  "owner": { "name": "elderithm", "url": "https://github.com/elderithm/demomotion-ai" },
+  "plugins": [
+    {
+      "name": "demomotion",
+      "source": "./plugins/demomotion",
+      "description": "Generate narrated demo videos of web apps from a URL and a goal."
+    }
+  ]
+}
