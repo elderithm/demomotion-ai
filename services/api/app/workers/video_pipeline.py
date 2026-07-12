@@ -45,21 +45,27 @@ class VideoPipeline:
             job.add_event("Narration script generated")
             store.save(job)
 
+            # Synthesize the voice-over first so the screen recording can be paced
+            # to the narration's length (the page keeps scrolling for the whole clip
+            # instead of freezing after a short burst).
+            job.add_event("Generating voice-over")
+            store.save(job)
+            audio = await self.speech.synthesize(script, job.input.language, base / "narration.wav")
+            narration_seconds = _duration(audio)
+
             job.status = VideoJobStatus.recording
             job.add_event("Opening Chromium and recording the product workflow")
             store.save(job)
             raw_video, lead_in = await self.recorder.record(
-                str(job.input.url), scenario, base, job.input.aspect_ratio, job.input.language
+                str(job.input.url), scenario, base, job.input.aspect_ratio, job.input.language,
+                target_duration=narration_seconds,
             )
             job.add_event("Screen recording completed")
             store.save(job)
 
             job.status = VideoJobStatus.rendering
-            job.add_event("Generating voice-over and subtitle file")
-            store.save(job)
-            audio = await self.speech.synthesize(script, job.input.language, base / "narration.wav")
             # Spread the subtitles across the narration audio so they stay in sync.
-            subtitle_text = create_vtt(script, base / "subtitles.vtt", _duration(audio))
+            subtitle_text = create_vtt(script, base / "subtitles.vtt", narration_seconds)
             job.subtitle_vtt = subtitle_text
 
             job.add_event("Compositing recording and narration into MP4")
