@@ -21,6 +21,8 @@
 
 **☁️ Want the hosted version? [Join the DemoMotion Cloud waiting list →](https://demomotion-cloud-prod.web.app)**
 
+**☁️ ホスティング版をご希望ですか？ [DemoMotion Cloud のウェイティングリストに登録 →](https://demomotion-cloud-prod.web.app)**
+
 [![Join the waiting list](https://img.shields.io/badge/DemoMotion_Cloud-Join_the_waiting_list-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)](https://demomotion-cloud-prod.web.app)
 
 <br>
