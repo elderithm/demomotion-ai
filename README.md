@@ -375,7 +375,7 @@ https://… showing …"). It wraps the same containerized pipeline — the publ
 
 Then you get, in any project:
 
-- a typed command — **`/demomotion:demo-video <url> <goal>`** (the `<url> <goal>`
+- a typed command — **`/demomotion:demo <url> <goal>`** (the `<url> <goal>`
   hint shows in the slash menu), and
 - the auto-invoked skill `demomotion:demo-video` (just ask in plain language).
 
