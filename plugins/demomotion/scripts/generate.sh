@@ -21,7 +21,7 @@ Required:
 Options:
   --language CODE      Narration language, e.g. en-US, ja-JP  (default: en-US)
   --aspect RATIO       16:9 or 9:16                           (default: 16:9)
-  --output PATH        Where to write the MP4                 (default: demo.mp4)
+  --output PATH        Where to write the MP4 (relative = current dir; default: demo.mp4)
   --image REF          API container image                    (default: public GHCR image)
   --ai PROVIDER        demo | vertex                          (default: demo)
   --tts PROVIDER       demo | google                          (default: demo)
