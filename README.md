@@ -373,8 +373,13 @@ https://… showing …"). It wraps the same containerized pipeline — the publ
 /plugin install demomotion@demomotion-ai
 ```
 
-The skill is then available as `demomotion:demo-video` in any project. Requires
-Docker (plus `curl` and `python3`). The default `demo` provider needs no
+Then you get, in any project:
+
+- a typed command — **`/demomotion:demo-video <url> <goal>`** (the `<url> <goal>`
+  hint shows in the slash menu), and
+- the auto-invoked skill `demomotion:demo-video` (just ask in plain language).
+
+Requires Docker (plus `curl` and `python3`). The default `demo` provider needs no
 credentials; for tailored Gemini narration, run `gcloud auth
 application-default login` and pass `--ai vertex --tts google --gcp-project <id>`.
 
