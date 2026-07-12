@@ -247,6 +247,44 @@ The action pulls the published API image (`ghcr.io/elderithm/demomotion-ai-api`)
 runs it on the runner, generates the video, and writes it to `demo.mp4`. A
 copy-paste example lives in [`examples/github-actions/demo.yml`](examples/github-actions/demo.yml).
 
+### Seen on GitHub Actions
+
+Below is a complete workflow, running on a real pull request. No secrets are
+needed for the default `demo` provider: the action pulls the **public**
+`ghcr.io/elderithm/demomotion-ai-api` image and records entirely on the runner.
+
+```yaml
+# .github/workflows/generate-demo.yml
+name: Generate demo video
+on: pull_request
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: elderithm/demomotion-ai@main
+        with:
+          url: https://your-app.example.com
+          goal: Explain the app for a first-time visitor, focusing on the key features.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: demo-video
+          path: demo.mp4
+```
+
+The job pulls the image, drives the site through the pipeline
+(`planning → recording → completed`), writes `demo.mp4`, and uploads it as the
+`demo-video` artifact — a green run with a downloadable video:
+
+![The finished run summary with the downloadable demo-video artifact](generated_artifact.png)
+
+<details>
+<summary>Full job log — pulling the public image and generating the MP4 on the runner</summary>
+
+![The demo job pulling ghcr.io/elderithm/demomotion-ai-api and generating demo.mp4](github_actions_flow.png)
+
+</details>
+
 ### Tailored narration with Gemini — keyless (recommended)
 
 For narration tailored to your site you need Google Cloud. **Do not create a
