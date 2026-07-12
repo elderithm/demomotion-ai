@@ -237,6 +237,79 @@ it up automatically (`DEMOMOTION_AUTH_STATE`) and ignores it when absent.
 Automated login (login-form detection, 2FA, encrypted credential storage) is out
 of scope for the OSS engine and belongs to a hosted edition.
 
+## Deploy to Google Cloud
+
+Trying it locally needs **no cloud** — the Docker Compose quick start runs the
+`demo` providers. To run the full stack (Vertex AI narration, Cloud TTS, signed
+URLs) on **your own Google Cloud project**, provision it with the Terraform in
+[`infra/environments/dev`](infra/environments/dev). It creates Cloud Run (api +
+web), Artifact Registry, a Cloud Storage bucket, a least-privilege runtime
+service account, and the keyless-CI Workload Identity Federation pool — and
+enables the required APIs.
+
+**Prerequisites**
+
+- A Google Cloud **project with billing enabled**.
+- `gcloud`, `terraform`, and Docker installed, and authenticated:
+  ```bash
+  gcloud auth login
+  gcloud auth application-default login   # lets Terraform use your credentials
+  gcloud config set project YOUR_PROJECT_ID
+  ```
+
+**1 — Configure Terraform**
+
+```bash
+cd infra/environments/dev
+cp example.tfvars terraform.tfvars
+# edit terraform.tfvars: project_id, region, github_repository
+# (basic_auth_user/pass are optional — leave empty for a public dashboard)
+terraform init
+```
+
+**2 — Create the registry and base resources**
+
+The Cloud Run services can't start until their images exist, so create the
+registry (and enable APIs) first:
+
+```bash
+terraform apply \
+  -target=google_project_service.apis \
+  -target=google_artifact_registry_repository.repo
+```
+
+**3 — Build & deploy the API** (run the build from the repo root)
+
+```bash
+export PROJECT_ID=YOUR_PROJECT_ID REGION=asia-northeast1
+bash scripts/build-api.sh            # builds services/api (linux/amd64) and pushes it
+
+cd infra/environments/dev
+terraform apply -target=google_cloud_run_v2_service.api
+terraform output -raw api_url        # note this — the web build needs it
+```
+
+**4 — Build the dashboard against that API URL, then deploy everything**
+
+The web bundle inlines the API URL at build time, so pass it as a build arg:
+
+```bash
+export PROJECT_ID=YOUR_PROJECT_ID REGION=asia-northeast1
+export API_BASE_URL="https://…-an.a.run.app"   # the api_url from step 3
+bash scripts/build-web.sh
+
+cd infra/environments/dev
+terraform apply                      # deploys web + finalizes everything
+terraform output                     # web_url, api_url, bucket, wif_provider, ci_service_account
+```
+
+Open `web_url` — the dashboard is public by default (`allUsers` invoker). Set
+`basic_auth_user`/`basic_auth_pass` in `terraform.tfvars` and re-apply to gate it.
+
+**Redeploys**: rebuild + push the image (`scripts/build-api.sh` / `build-web.sh`)
+and re-run `terraform apply`. On Apple Silicon the scripts build `linux/amd64`
+images because Cloud Run runs amd64.
+
 ## Use it in your own CI
 
 Other repos generate a video with the reusable GitHub Action — no need to clone
