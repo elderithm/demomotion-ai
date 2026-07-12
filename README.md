@@ -51,6 +51,19 @@ This repository is the open-source core, licensed under AGPL-3.0-or-later. A hos
 6. ffmpeg combines screen recording, narration, and subtitles into an MP4.
 7. The result is saved locally in dev or to Cloud Storage in GCP.
 
+## Architecture
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/architecture-dark.png">
+  <img alt="DemoMotion AI architecture: entry points feed the FastAPI service on Cloud Run, whose pipeline probes the page, plans with Vertex AI Gemini, voices it with Cloud Text-to-Speech, records with Playwright, renders with ffmpeg, and publishes to Cloud Storage." src="docs/architecture.png">
+</picture>
+
+Entry points (web dashboard, REST API, the reusable GitHub Action, and the Claude
+Code plugin) all hit one FastAPI service on Cloud Run, which runs the pipeline —
+**probe → plan → voice-over → record → subtitles → render → publish** — and hands
+back an MP4. Every cloud stage has a credential-free `demo` fallback, so the same
+image runs locally or wired into Google Cloud.
+
 ## Providers
 
 Each stage of the pipeline is a pluggable provider, selected by environment
