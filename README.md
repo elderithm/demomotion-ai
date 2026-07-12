@@ -359,6 +359,31 @@ Notes:
 `.github/workflows/generate-demo.yml` is a self-contained variant that runs the
 full stack from a checkout of this repo (handy for trying it here).
 
+## Use it as a Claude Code skill
+
+This repo ships a [Claude Code](https://claude.com/claude-code) skill so you can
+ask Claude to record a demo in plain language ("make a demo video of
+https://… showing …"). It wraps the same containerized pipeline — the public
+`ghcr.io/elderithm/demomotion-ai-api` image runs locally and writes an MP4.
+
+- Skill: [`.claude/skills/demo-video/`](.claude/skills/demo-video/) (`SKILL.md` +
+  `scripts/generate.sh`). It is auto-discovered when you run Claude Code in this
+  repo; to use it elsewhere, copy the folder into your project's `.claude/skills/`
+  or into `~/.claude/skills/`.
+- Requires Docker (plus `curl` and `python3`). The default `demo` provider needs
+  no credentials; for tailored Gemini narration, run
+  `gcloud auth application-default login` and pass `--ai vertex --tts google
+  --gcp-project <id>`.
+
+You can also run the script directly:
+
+```bash
+.claude/skills/demo-video/scripts/generate.sh \
+  --url https://your-app.example.com \
+  --goal "Explain the app for a first-time visitor, focusing on the key features." \
+  --output demo.mp4
+```
+
 ## Docker notes
 
 The API container uses the official Playwright Python image and installs ffmpeg, so Chromium recording works inside Docker. Generated files are stored in a Docker volume named `api_generated`.
