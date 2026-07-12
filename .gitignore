@@ -71,3 +71,7 @@ Thumbs.db
 *.zip
 tmp/
 coverage/
+
+# ---- Generated demo videos (skill/plugin output to cwd) ----
+/demo.mp4
+/demo-*.mp4

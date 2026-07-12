@@ -58,6 +58,26 @@ _CURSOR = """() => {
   };
 }"""
 
+# Smoothly scroll the tagged container (or the window) to a fraction [0..1] of its
+# scrollable height over `dur` ms, resolving when done. Driven by rAF so the motion
+# is continuous — this fills the video with movement instead of discrete jumps.
+_SCROLL_ANIM = """([toFrac, dur]) => new Promise((resolve) => {
+  const el = document.querySelector('[data-dm-scroll]');
+  const maxY = el ? (el.scrollHeight - el.clientHeight)
+                  : ((document.scrollingElement || document.documentElement).scrollHeight - window.innerHeight);
+  const toY = Math.max(0, maxY) * toFrac;
+  const startY = el ? el.scrollTop : window.scrollY;
+  const start = performance.now();
+  function step(now) {
+    const t = Math.min(1, (now - start) / dur);
+    const e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;  // easeInOutQuad
+    const y = startY + (toY - startY) * e;
+    if (el) el.scrollTop = y; else window.scrollTo(0, y);
+    if (t < 1) requestAnimationFrame(step); else resolve();
+  }
+  requestAnimationFrame(step);
+})"""
+
 # Visible labels of clickable elements (tabs, buttons, links) for the planner.
 _CLICKABLES = """() => {
   const out = [], seen = new Set();
@@ -157,7 +177,8 @@ class BrowserRecorder:
             return text, clickables
 
     async def record(
-        self, url: str, scenario: DemoScenario, output_dir: Path, aspect_ratio: str, language: str = "en-US"
+        self, url: str, scenario: DemoScenario, output_dir: Path, aspect_ratio: str,
+        language: str = "en-US", target_duration: float | None = None,
     ) -> tuple[Path, float]:
         output_dir.mkdir(parents=True, exist_ok=True)
         viewport = self._viewport(aspect_ratio)
@@ -171,6 +192,9 @@ class BrowserRecorder:
             await context.add_init_script(f"({_CURSOR})()")
             page = await context.new_page()
             lead_in = await _prepare(page, url)
+            # Mark the start of the kept video (the blank load-in before this is
+            # trimmed) so the page tour can be paced to fill the narration length.
+            content_start = time.monotonic()
             await page.wait_for_timeout(1500)
             try:
                 await page.evaluate(_TAG_SCROLLER)
@@ -187,13 +211,20 @@ class BrowserRecorder:
             planned = [s.get("text") or s.get("selector") for s in scenario.selectors]
             print(f"[recorder] planned actions: {planned}", flush=True)
             clicked = False
+            clicks_done = 0
             for step in scenario.selectors:
                 action = step.get("action")
                 selector = step.get("selector")
                 try:
                     if action == "click_text" and step.get("text"):
+                        # Cap interactions: on content-heavy pages the clickables are
+                        # tabs/links near the top, so clicking many of them just
+                        # dwells at the top and buries the page tour below.
+                        if clicks_done >= 2:
+                            continue
                         await self._click_by_text(page, url, step["text"])
                         clicked = True
+                        clicks_done += 1
                         print(f"[recorder] clicked: {step['text']!r}", flush=True)
                     elif action == "click" and selector:
                         await page.locator(selector).first.click(timeout=4000)
@@ -214,12 +245,15 @@ class BrowserRecorder:
             # bring the top into view and hold so the viewer registers the result
             # before the page tour begins.
             if clicked:
-                await self._hold_on_result(page, 2500)
+                await self._hold_on_result(page, 1500)
 
-            # Deterministically page through the ENTIRE page top→bottom so the
-            # recording always demonstrates scrolling — regardless of whether
-            # clicks left us near the top or bottom.
-            await self._scroll_full(page)
+            # Continuously scroll the whole page, paced to fill the rest of the
+            # narration so the video keeps moving instead of freezing on a single
+            # frame once a short scroll burst ends.
+            budget = None
+            if target_duration:
+                budget = target_duration - (time.monotonic() - content_start) - 1.5
+            await self._scroll_full(page, budget)
             await page.wait_for_timeout(1500)
 
             video = page.video
@@ -286,49 +320,22 @@ class BrowserRecorder:
             pass
         await page.wait_for_timeout(ms)
 
-    async def _scroll_full(self, page) -> None:
-        """Page through the entire scrollable content top→bottom, holding at each
-        stop, then return to the top. Viewport-based paging (not a fixed step
-        count) guarantees every section is shown on tall pages regardless of the
-        current scroll position."""
+    async def _scroll_full(self, page, budget: float | None = None) -> None:
+        """Continuously scroll the whole page top→bottom→top, pacing the motion to
+        fill `budget` seconds so the recording keeps moving for the entire narration
+        instead of freezing after a short burst. Falls back to a fixed pace when no
+        budget is given."""
+        budget = budget if budget and budget > 4 else 16.0
         try:
-            m = await page.evaluate("""() => {
-              const el = document.querySelector('[data-dm-scroll]');
-              return {
-                total: el ? el.scrollHeight : document.documentElement.scrollHeight,
-                view: el ? el.clientHeight : window.innerHeight,
-                has: !!el,
-              };
-            }""")
-        except Exception:
-            return
-        total, view, has = m["total"], m["view"], m["has"]
-        await self._scroll_to(page, 0, has)
-        await page.wait_for_timeout(900)
-        step = max(1, int(view * 0.85))
-        y = 0
-        # Cap the stops so a very tall page can't run the recording forever.
-        for _ in range(12):
-            if y + view >= total:
-                break
-            y += step
-            await self._scroll_to(page, y, has)
-            await page.wait_for_timeout(1100)
-        # Hold at the bottom, then glide back to the top for the closing frame.
-        await self._scroll_to(page, max(0, total - view), has)
-        await page.wait_for_timeout(1100)
-        await self._scroll_to(page, 0, has)
-        await page.wait_for_timeout(1200)
-
-    async def _scroll_to(self, page, y: float, has: bool) -> None:
-        try:
-            if has:
-                await page.evaluate(
-                    "(y) => { const el = document.querySelector('[data-dm-scroll]');"
-                    " if (el) el.scrollTo({ top: y, behavior: 'smooth' }); }", y
-                )
-            else:
-                await page.evaluate("(y) => window.scrollTo({ top: y, behavior: 'smooth' })", y)
+            # Start from the top so the tour is complete, then glide down and back.
+            await page.evaluate(_SCROLL_ANIM, [0.0, 200])
+            await page.wait_for_timeout(250)
+            # Spend most of the budget going down (the reveal), a bit coming back up.
+            down_ms = int(budget * 1000 * 0.60)
+            up_ms = int(budget * 1000 * 0.34)
+            await page.evaluate(_SCROLL_ANIM, [1.0, down_ms])
+            await page.wait_for_timeout(int(budget * 1000 * 0.04))
+            await page.evaluate(_SCROLL_ANIM, [0.0, up_ms])
         except Exception:
             pass
 
@@ -372,4 +379,4 @@ class BrowserRecorder:
             # click (intercepted or never "stable"); dispatch the event directly so
             # the tab/panel still switches.
             await loc.dispatch_event("click")
-        await page.wait_for_timeout(1800)
+        await page.wait_for_timeout(1000)
