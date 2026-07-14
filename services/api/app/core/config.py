@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     ai_provider: str = "demo"
     tts_provider: str = "demo"
     storage_provider: str = "local"
+    # Optional dotted path to a BrowserRecorder subclass, so a deployment
+    # (e.g. the hosted/commercial edition) can plug in its own recorder.
+    # Example: RECORDER_CLASS=my_package.recorder.MyRecorder
+    recorder_class: str | None = None
     gcp_project_id: str | None = None
     gcp_location: str = "asia-northeast1"
     gcs_bucket: str | None = None

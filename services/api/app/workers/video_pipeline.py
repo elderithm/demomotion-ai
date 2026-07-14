@@ -1,3 +1,4 @@
+import importlib
 from pathlib import Path
 import traceback
 
@@ -17,10 +18,25 @@ class VideoPipeline:
         self.settings = get_settings()
         self.planner = ScenarioPlanner()
         self.narration = NarrationWriter()
-        self.recorder = BrowserRecorder()
+        self.recorder = self._load_recorder()
         self.speech = SpeechService()
         self.renderer = VideoRenderer()
         self.storage = OutputStorage()
+
+    def _load_recorder(self) -> BrowserRecorder:
+        """Instantiate the recorder. RECORDER_CLASS (a dotted path to a
+        BrowserRecorder subclass) lets deployments plug in an alternative
+        implementation without forking the pipeline."""
+        dotted = self.settings.recorder_class
+        if dotted:
+            try:
+                module, _, name = dotted.rpartition(".")
+                cls = getattr(importlib.import_module(module), name)
+                print(f"[pipeline] using recorder {dotted}", flush=True)
+                return cls()
+            except Exception as exc:
+                print(f"[pipeline] failed to load {dotted!r}, using default: {exc!r}", flush=True)
+        return BrowserRecorder()
 
     async def run(self, job: VideoJob) -> None:
         base = Path(self.settings.output_dir) / job.id
@@ -56,11 +72,13 @@ class VideoPipeline:
             job.status = VideoJobStatus.recording
             job.add_event("Opening Chromium and recording the product workflow")
             store.save(job)
-            raw_video, lead_in = await self.recorder.record(
+            raw_video, lead_in, performed = await self.recorder.record(
                 str(job.input.url), scenario, base, job.input.aspect_ratio, job.input.language,
-                target_duration=narration_seconds,
+                target_duration=narration_seconds, goal=job.input.goal,
             )
-            job.add_event("Screen recording completed")
+            job.add_event(
+                f"Screen recording completed ({len(performed)} on-page interactions)"
+            )
             store.save(job)
 
             job.status = VideoJobStatus.rendering
