@@ -84,6 +84,8 @@ no Google Cloud access — ideal for local development, CI, and trying the engin
 ```txt
 apps/
   web/       Next.js dashboard for creating video jobs and viewing results
+    app/webmcp/    WebMCP collaborative workspace (/webmcp)
+    lib/webmcp/    WebMCP tools, shared store, and backend adapter
   demo-app/  Small demo SaaS used as a zero-setup recording target
 services/
   api/       FastAPI API + worker orchestration + Playwright/ffmpeg pipeline
@@ -219,6 +221,94 @@ GCS_BUCKET=your-output-bucket
 5. Click **Generate demo video**.
 6. Watch job progress.
 7. Play or download the generated MP4.
+
+## WebMCP Challenge 2026
+
+DemoMotion AI exposes its demo-creation workflow to browser AI agents through
+[**WebMCP**](https://webmcp.devpost.com/) (`document.modelContext`), so a human
+and an agent can create, refine, and export a demo **together** in one shared
+workspace — the agent uses structured tools while the human keeps editing the
+same project by hand.
+
+> Before WebMCP, an agent had to visually guess how to drive a demo-generation
+> UI. With WebMCP, DemoMotion exposes structured creative actions while the human
+> retains control of the same workspace.
+
+### Try it (judge flow)
+
+1. Start the stack (Docker Compose quick start above, or the local setup). The
+   web app is on `http://localhost:3000`, the demo-app on `:3001`, the API on `:8080`.
+2. Open **`http://localhost:3000/webmcp`** in a WebMCP-capable browser:
+   - **Chrome 149+** with `chrome://flags/#enable-webmcp-testing` enabled, or
+   - the **ChatGPT desktop app** browser.
+   - Any other browser works too: [`@mcp-b/webmcp-polyfill`](https://www.npmjs.com/package/@mcp-b/webmcp-polyfill)
+     installs a spec-compliant runtime automatically. The page shows whether it is
+     using the **native** or **polyfill** runtime.
+3. Confirm the **“WebMCP enabled”** badge and the five registered tools.
+4. Ask the agent, e.g. *“Read this DemoMotion project and make the narration more
+   concise.”* It calls `get_demo_state` → `create_demo` → `update_demo_narration`,
+   and the workspace updates live.
+5. Say *“Generate the final demo.”* → `generate_demo` runs the **real** pipeline
+   (30–90s) and the MP4 appears.
+6. Review it, then approve export. `export_demo` requires explicit confirmation
+   and produces a **local** download only.
+
+No Chrome extension and no cloud account are required — the default `demo`
+providers record the bundled demo-app credential-free.
+
+### WebMCP tools
+
+Approximately one tool per meaningful action; each has a strict input schema,
+clear success output, and structured errors (`INVALID_INPUT`,
+`PROJECT_NOT_FOUND`, `GENERATION_FAILED`, `EXPORT_NOT_READY`,
+`EXPORT_REQUIRES_CONFIRMATION`).
+
+| Tool | Effect | Backend it adapts |
+| --- | --- | --- |
+| `get_demo_state` | Read-only workspace snapshot | — (shared client store) |
+| `create_demo` | Start an editable draft (title, steps, first-pass narration) | `POST /v1/demo-drafts` |
+| `update_demo_narration` | Rewrite narration/title; invalidates any stale video | shared store |
+| `generate_demo` | Run the real pipeline to a narrated MP4 | `POST /v1/video-jobs` |
+| `export_demo` | Local-only MP4 download, gated on human confirmation | `GET /v1/video-jobs/{id}/download` |
+
+### What is new vs pre-existing
+
+**Pre-existing DemoMotion (before 2026-08-25):** the entire generation pipeline
+(probe → plan → voice-over → record → subtitles → render → publish), the web
+dashboard at `/`, the bundled demo-app, the `POST /v1/video-jobs` REST API, the
+pluggable providers, the Docker/Terraform deploy, the GitHub Action, and the
+Claude Code plugin.
+
+**New for the WebMCP Challenge (after 2026-08-25):**
+
+- **WebMCP workspace** — the `/webmcp` route: `apps/web/app/webmcp/page.tsx`.
+- **WebMCP adapter layer** — `apps/web/lib/webmcp/`: `registerTools.ts`, the five
+  tools in `tools/`, the shared workspace `store.ts`, shared `actions.ts`, the
+  backend client `api.ts`, and strict schema/result helpers in `result.ts`.
+- **Reusable backend surface** the tools adapt over (no pipeline logic
+  duplicated): `POST /v1/demo-drafts` (reuses the existing `ScenarioPlanner` +
+  `NarrationWriter`, no recording) in `services/api/app/api/demo_drafts.py`, and
+  optional `title_override` / `narration_override` on `VideoJobCreate` so a
+  narration edited before generation actually reaches the rendered video.
+
+WebMCP is an ecosystem/integration feature only. It adds no accounts, billing,
+hosted storage, persistent share URLs, or Cloud-only capability — those remain
+with [DemoMotion Cloud](https://demomotion-cloud-prod.web.app).
+
+### Supported environment & known limitations
+
+- **Secure context required:** WebMCP runs only on `https://` or `localhost`.
+- **Runtime:** native in Chrome 149+ (testing flag) and the ChatGPT desktop
+  browser; polyfilled elsewhere via `@mcp-b/webmcp-polyfill`.
+- **Workspace state is per browser tab** (in-memory, local-first). It is not
+  persisted or shared across viewers — persistent/hosted projects are Cloud-only.
+- **`generate_demo` runs the real pipeline.** In `demo` provider mode it records
+  the bundled demo-app deterministically; point it at any public URL to record
+  that instead.
+- **Basic auth on the hosted deployment:** if `BASIC_AUTH_USER` / `BASIC_AUTH_PASS`
+  are set, the whole dashboard (including `/webmcp`) is gated, so run the agent in
+  an already-authenticated browser tab. (Credentials are shared with judges at
+  submission; leave the vars unset for a fully public deploy.)
 
 ## Recording sites that need a login
 
