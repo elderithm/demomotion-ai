@@ -18,6 +18,27 @@ class VideoJobCreate(BaseModel):
     goal: str = Field(min_length=4, max_length=1200)
     language: str = Field(default="en-US")
     aspect_ratio: str = Field(default="16:9", pattern="^(16:9|9:16)$")
+    # Optional human/agent-authored overrides. When supplied (e.g. from the WebMCP
+    # collaborative workspace), the pipeline uses these instead of regenerating the
+    # narration/title from scratch, so a demo edited before generation actually
+    # affects the rendered video. Both default to None to keep existing behavior.
+    title_override: str | None = Field(default=None, max_length=200)
+    narration_override: str | None = Field(default=None, max_length=4000)
+
+
+class DemoDraftRequest(BaseModel):
+    """Lightweight planning request: produce an editable scenario + narration draft
+    without recording or rendering. Reused by the WebMCP `create_demo` tool."""
+
+    url: HttpUrl
+    goal: str = Field(min_length=4, max_length=1200)
+    language: str = Field(default="en-US")
+
+
+class DemoDraft(BaseModel):
+    title: str
+    steps: list[str]
+    narration: str
 
 
 class DemoScenario(BaseModel):

@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.demo_drafts import router as demo_drafts_router
 from app.api.video_jobs import router as video_jobs_router
 from app.core.config import get_settings
 
@@ -21,6 +22,7 @@ app.add_middleware(
 )
 
 app.include_router(video_jobs_router)
+app.include_router(demo_drafts_router)
 
 
 @app.get("/healthz")
