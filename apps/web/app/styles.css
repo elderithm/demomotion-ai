@@ -245,3 +245,110 @@ pre {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- WebMCP workspace (/webmcp) --- */
+.wm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--muted);
+  backdrop-filter: blur(18px);
+}
+.wm-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--muted);
+}
+.wm-badge.is-on {
+  color: var(--text);
+}
+.wm-badge.is-on .wm-dot {
+  background: var(--ok);
+  box-shadow: 0 0 0 4px rgba(115, 230, 162, 0.18);
+}
+.wm-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.wm-tool {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--brand);
+}
+.wm-steps {
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+.wm-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+.wm-actions .primary {
+  width: auto;
+}
+.wm-download {
+  display: inline-block;
+  background: var(--brand);
+  color: #080c18;
+  font-weight: 800;
+  text-decoration: none;
+  border-radius: 14px;
+  padding: 12px 18px;
+}
+.wm-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wm-log li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 10px 14px;
+  font-size: 14px;
+}
+.wm-log li.is-error {
+  border-color: rgba(255, 122, 144, 0.5);
+}
+.wm-log time {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.wm-actor {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+.wm-actor--agent {
+  background: rgba(182, 148, 255, 0.2);
+  color: var(--brand-2);
+}
+.wm-actor--human {
+  background: rgba(135, 247, 255, 0.18);
+  color: var(--brand);
+}
