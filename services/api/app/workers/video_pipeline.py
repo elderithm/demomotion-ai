@@ -52,6 +52,13 @@ class VideoPipeline:
                 str(job.input.url), job.input.aspect_ratio, job.input.language
             )
             scenario = await self.planner.create_scenario(job.input, page_text, clickables)
+            # Apply human/agent overrides authored before generation (WebMCP
+            # collaborative workspace) so the edited title/narration is what gets
+            # rendered, rather than a freshly generated script.
+            if job.input.title_override:
+                scenario.title = job.input.title_override
+            if job.input.narration_override:
+                scenario.narration = job.input.narration_override
             job.scenario = scenario
             job.add_event(f"Scenario generated: {scenario.title}")
             store.save(job)
