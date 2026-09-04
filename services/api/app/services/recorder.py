@@ -196,6 +196,25 @@ class BrowserRecorder:
             # trimmed) so the page tour can be paced to fill the narration length.
             content_start = time.monotonic()
             await page.wait_for_timeout(1500)
+
+            # Guard against recording a blank (white) page: if nothing visible
+            # rendered after load + settle (a target that needs a login, blocks
+            # bots, or failed to load), fail with a clear message instead of
+            # silently producing an all-white video.
+            try:
+                has_content = await page.evaluate(
+                    "() => { const t = document.body ? document.body.innerText.trim() : '';"
+                    " const media = document.querySelector('img, svg, canvas, video');"
+                    " return t.length > 30 || !!media; }"
+                )
+            except Exception:
+                has_content = True  # never block the job on an eval hiccup
+            if not has_content:
+                raise RuntimeError(
+                    "Target page did not render any visible content (blank page). "
+                    "Use a public URL that renders without a login or bot check."
+                )
+
             try:
                 await page.evaluate(_TAG_SCROLLER)
             except Exception:
