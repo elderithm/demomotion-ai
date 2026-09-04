@@ -27,6 +27,14 @@ export default function WebMcpPage() {
   const [reg, setReg] = useState<RegisterResult | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Prefill the recording target with a known-rendering public URL (the deployed
+  // demo-app) so a demo works out of the box and never records a blank page. The
+  // human/agent can still change it.
+  useEffect(() => {
+    const preset = process.env.NEXT_PUBLIC_DEFAULT_DEMO_URL || '';
+    if (preset && !demoStore.getState().url) demoStore.patch({ url: preset });
+  }, []);
+
   // Register the WebMCP tools once, tied to an AbortController so they unregister
   // when the page unmounts. This is the client-side "adapter layer" — the agent
   // and the human below both drive the same shared store.
