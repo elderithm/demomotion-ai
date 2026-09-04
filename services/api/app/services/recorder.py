@@ -178,8 +178,8 @@ class BrowserRecorder:
 
     async def record(
         self, url: str, scenario: DemoScenario, output_dir: Path, aspect_ratio: str,
-        language: str = "en-US", target_duration: float | None = None,
-    ) -> tuple[Path, float]:
+        language: str = "en-US", target_duration: float | None = None, goal: str = "",
+    ) -> tuple[Path, float, list[str]]:
         output_dir.mkdir(parents=True, exist_ok=True)
         viewport = self._viewport(aspect_ratio)
         video_dir = output_dir / "raw"
@@ -201,51 +201,10 @@ class BrowserRecorder:
             except Exception:
                 pass
 
-            # Show a real input→submit workflow: type into the page's primary text
-            # field before clicking, so the demo reads as a user driving the product.
-            await self._demo_type(page)
-
-            # Run the planned interactions (Gemini-chosen tabs/buttons, or the demo
-            # app's data-testid steps). Hold on the result afterwards rather than
-            # scrolling away immediately, so a revealed result is clearly visible.
-            planned = [s.get("text") or s.get("selector") for s in scenario.selectors]
-            print(f"[recorder] planned actions: {planned}", flush=True)
-            clicked = False
-            clicks_done = 0
-            for step in scenario.selectors:
-                action = step.get("action")
-                selector = step.get("selector")
-                try:
-                    if action == "click_text" and step.get("text"):
-                        # Cap interactions: on content-heavy pages the clickables are
-                        # tabs/links near the top, so clicking many of them just
-                        # dwells at the top and buries the page tour below.
-                        if clicks_done >= 2:
-                            continue
-                        await self._click_by_text(page, url, step["text"])
-                        clicked = True
-                        clicks_done += 1
-                        print(f"[recorder] clicked: {step['text']!r}", flush=True)
-                    elif action == "click" and selector:
-                        await page.locator(selector).first.click(timeout=4000)
-                        await page.wait_for_timeout(900)
-                    elif action == "fill" and selector:
-                        await page.locator(selector).first.fill(step.get("value", ""), timeout=4000)
-                        await page.wait_for_timeout(900)
-                    elif action == "wait" and selector:
-                        await page.locator(selector).first.wait_for(timeout=4000)
-                        await page.wait_for_timeout(1500)
-                except Exception as exc:
-                    # Best-effort: a planned target may not exist on an arbitrary
-                    # site. Skip it and keep recording rather than failing the job.
-                    print(f"[recorder] action skipped ({action} {step.get('text') or selector!r}): {exc!r}", flush=True)
-                    continue
-
-            # If a click just revealed content (a launch plan, an expanded panel),
-            # bring the top into view and hold so the viewer registers the result
-            # before the page tour begins.
-            if clicked:
-                await self._hold_on_result(page, 1500)
+            # Interaction phase. Alternative recorder implementations override
+            # _interact only; the recording setup, paced scroll tour, and
+            # teardown stay shared.
+            performed = await self._interact(page, url, scenario, language, goal)
 
             # Continuously scroll the whole page, paced to fill the rest of the
             # narration so the video keeps moving instead of freezing on a single
@@ -261,9 +220,70 @@ class BrowserRecorder:
             await browser.close()
             if video is None:
                 raise RuntimeError("Playwright did not produce a video")
-            return Path(await video.path()), lead_in
+            return Path(await video.path()), lead_in, performed
 
-    async def _demo_type(self, page) -> None:
+    async def _interact(
+        self, page, url: str, scenario: DemoScenario, language: str, goal: str = ""
+    ) -> list[str]:
+        """Drive the page during recording. Returns short descriptions of the
+        interactions that actually happened. The base implementation types into
+        the primary input and runs the pre-planned scenario actions; subclasses
+        can implement other interaction strategies."""
+        performed: list[str] = []
+
+        # Show a real input→submit workflow: type into the page's primary text
+        # field before clicking, so the demo reads as a user driving the product.
+        if await self._demo_type(page):
+            performed.append("Typed into the page's primary input field")
+
+        # Run the planned interactions (Gemini-chosen tabs/buttons, or the demo
+        # app's data-testid steps). Hold on the result afterwards rather than
+        # scrolling away immediately, so a revealed result is clearly visible.
+        planned = [s.get("text") or s.get("selector") for s in scenario.selectors]
+        print(f"[recorder] planned actions: {planned}", flush=True)
+        clicked = False
+        clicks_done = 0
+        for step in scenario.selectors:
+            action = step.get("action")
+            selector = step.get("selector")
+            description = step.get("description") or step.get("text") or selector or ""
+            try:
+                if action == "click_text" and step.get("text"):
+                    # Cap interactions: on content-heavy pages the clickables are
+                    # tabs/links near the top, so clicking many of them just
+                    # dwells at the top and buries the page tour below.
+                    if clicks_done >= 2:
+                        continue
+                    await self._click_by_text(page, url, step["text"])
+                    clicked = True
+                    clicks_done += 1
+                    performed.append(f"Clicked \"{step['text']}\"")
+                    print(f"[recorder] clicked: {step['text']!r}", flush=True)
+                elif action == "click" and selector:
+                    await page.locator(selector).first.click(timeout=4000)
+                    await page.wait_for_timeout(900)
+                    performed.append(f"Clicked {description}")
+                elif action == "fill" and selector:
+                    await page.locator(selector).first.fill(step.get("value", ""), timeout=4000)
+                    await page.wait_for_timeout(900)
+                    performed.append(f"Filled {description}")
+                elif action == "wait" and selector:
+                    await page.locator(selector).first.wait_for(timeout=4000)
+                    await page.wait_for_timeout(1500)
+            except Exception as exc:
+                # Best-effort: a planned target may not exist on an arbitrary
+                # site. Skip it and keep recording rather than failing the job.
+                print(f"[recorder] action skipped ({action} {step.get('text') or selector!r}): {exc!r}", flush=True)
+                continue
+
+        # If a click just revealed content (a launch plan, an expanded panel),
+        # bring the top into view and hold so the viewer registers the result
+        # before the page tour begins.
+        if clicked:
+            await self._hold_on_result(page, 1500)
+        return performed
+
+    async def _demo_type(self, page) -> bool:
         """If the page has a single prominent text field, animate the cursor to it
         and re-type its content, so the recording shows a real input→submit flow.
         Conservative on purpose: skips multi-field forms and sensitive inputs so it
@@ -275,7 +295,7 @@ class BrowserRecorder:
             count = await fields.count()
             # 0 → nothing to type; >3 → likely a login/checkout form, leave it alone.
             if count == 0 or count > 3:
-                return
+                return False
             target = None
             box = None
             best_w = 0.0
@@ -290,10 +310,10 @@ class BrowserRecorder:
                 if b["width"] > best_w:
                     best_w, target, box = b["width"], el, b
             if target is None or box is None:
-                return
+                return False
             value = (await target.input_value()) or ""
             if not value.strip():
-                return
+                return False
             cx = box["x"] + box["width"] / 2
             cy = box["y"] + box["height"] / 2
             await page.mouse.move(cx, cy, steps=20)
@@ -305,8 +325,10 @@ class BrowserRecorder:
             await target.type(value, delay=35)
             await page.wait_for_timeout(600)
             print("[recorder] typed into primary input", flush=True)
+            return True
         except Exception as exc:
             print(f"[recorder] input demo skipped: {exc!r}", flush=True)
+            return False
 
     async def _hold_on_result(self, page, ms: int) -> None:
         """Bring the top (where inline results usually render) into view and pause,
