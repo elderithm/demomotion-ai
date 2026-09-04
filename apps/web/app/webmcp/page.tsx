@@ -37,7 +37,9 @@ export default function WebMcpPage() {
     } catch {
       setReg({ registered: [], runtime: 'unavailable' });
     }
-    return () => controller.abort();
+    // Abort with an explicit AbortError reason so consumers see a clean reason
+    // (avoids "signal is aborted without reason") when the tools unregister.
+    return () => controller.abort(new DOMException('WebMcpPage unmounted', 'AbortError'));
   }, []);
 
   const pct = PROGRESS[state.status] ?? 0;
