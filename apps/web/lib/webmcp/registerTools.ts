@@ -47,7 +47,18 @@ export function registerDemoMotionTools(signal: AbortSignal): RegisterResult {
 
   const registered: string[] = [];
   for (const tool of demoTools) {
-    ctx.registerTool(tool, { signal });
+    // registerTool may return a promise tied to the abort signal. When the page
+    // unmounts (including React StrictMode's dev remount) the signal aborts and
+    // that promise rejects with an AbortError — expected, so swallow it instead
+    // of letting it surface as an unhandled rejection.
+    const result = ctx.registerTool(tool, { signal }) as void | Promise<void>;
+    if (result && typeof (result as Promise<void>).catch === 'function') {
+      (result as Promise<void>).catch((err: unknown) => {
+        if ((err as { name?: string })?.name !== 'AbortError') {
+          console.error(`WebMCP: failed to register ${tool.name}`, err);
+        }
+      });
+    }
     registered.push(tool.name);
   }
 
